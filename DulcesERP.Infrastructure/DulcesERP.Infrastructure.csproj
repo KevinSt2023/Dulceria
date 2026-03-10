@@ -20,12 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DulcesERP.Application\DulcesERP.Application.csproj" />
     <ProjectReference Include="..\DulcesERP.Domain\DulcesERP.Domain.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Context\" />
   </ItemGroup>
 
 </Project>
