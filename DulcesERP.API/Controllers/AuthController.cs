@@ -40,7 +40,7 @@ namespace DulcesERP.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
-            var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.email == request.email && 
+            var user = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.email == request.email && 
             u.password_hash == request.password);
 
             if(user == null)
