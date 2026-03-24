@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using DulcesERP.Application.DTOs;
 using DulcesERP.Application.Services;
-using DulcesERP.Application.DTOs;
 using DulcesERP.Infrastructure.Context;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace DulcesERP.API.Controllers
@@ -37,20 +38,25 @@ namespace DulcesERP.API.Controllers
             _jwtServices = jwtServices;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
-            var user = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.email == request.email && 
-            u.password_hash == request.password);
+            var user = await _context.Usuarios
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.email.Trim().ToLower() == request.email.Trim().ToLower());
 
-            if(user == null)
-                return Unauthorized("Credenciales no autorizadas");
+            if (user == null)
+                return Unauthorized("Usuario no existe");
+
+            if (user.password_hash.Trim() != request.password.Trim())
+                return Unauthorized("Password incorrecto");
 
             var token = _jwtServices.GenerateToken(
                 user.usuario_id,
                 user.tenant_id,
                 user.email
-                );
+            );
 
             return Ok(new { token });
         }

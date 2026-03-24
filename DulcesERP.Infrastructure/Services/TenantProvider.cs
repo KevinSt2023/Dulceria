@@ -19,7 +19,7 @@ namespace DulcesERP.Infrastructure.Services
 
         public int GetTenantId()
         {
-            var tenantClaim = _contextAccessor.HttpContext?.User.FindFirst("tenant_id");
+            var tenantClaim = _contextAccessor.HttpContext?.User?.FindFirst("tenant_id");
 
             if(tenantClaim == null)
                 return 0;
