@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 namespace DulcesERP.Application.DTOs
 {
-    public class CategoriasDTOs
+    public class UsuariosDTOs
     {
-        public int categoria_id { get; set; }
         public string nombre { get; set; } = string.Empty;
-        public bool activo { get; set; }
+        public string email { get; set; } = string.Empty;        
+        public bool activo { get; set; }      
+        public int rol_id { get; set; }
     }
 }

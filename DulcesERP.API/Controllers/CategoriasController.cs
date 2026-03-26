@@ -89,20 +89,20 @@ namespace DulcesERP.API.Controllers
             return Ok("Categoria desactivada correctamente");
         }
 
-        [HttpPut("activar/{id}")]
-        public async Task<IActionResult> ActivarCategoria(int id)
-        {
-            var categoria = await _context.Categorias
-                .FirstOrDefaultAsync(c => c.categoria_id == id);
+        //[HttpPut("activar/{id}")]
+        //public async Task<IActionResult> ActivarCategoria(int id)
+        //{
+        //    var categoria = await _context.Categorias
+        //        .FirstOrDefaultAsync(c => c.categoria_id == id);
 
-            if (categoria == null)
-                return NotFound();
+        //    if (categoria == null)
+        //        return NotFound();
 
-            categoria.activo = true;
+        //    categoria.activo = true;
 
-            await _context.SaveChangesAsync();
+        //    await _context.SaveChangesAsync();
 
-            return Ok(categoria);
-        }
+        //    return Ok(categoria);
+        //}
     }
 }

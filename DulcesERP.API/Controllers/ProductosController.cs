@@ -23,8 +23,23 @@ namespace DulcesERP.API.Controllers
         public async Task<IActionResult> GetProductos()
         {
             var productos = await _context.Productos
+                .Select(p => new
+                {
+                    p.producto_id,                    
+                    p.nombre,
+                    p.descripcion,
+                    p.precio,
+                    p.activo,
+                    p.categoria_id,
+                    p.unidad_id,
+                    p.tipo_producto_id,
+                    categoria = p.categorias.nombre,
+                    unidades = p.unidades.nombre,
+                    tipos = p.tipos.nombre
+                })
                 .OrderBy(p => p.producto_id)
                 .ToListAsync();
+
             return Ok(productos);
         }
 
@@ -52,7 +67,13 @@ namespace DulcesERP.API.Controllers
             };
 
             _context.Productos.Add(producto);
-            await _context.SaveChangesAsync();
+            if (!await _context.Categorias.AnyAsync(c => c.categoria_id == dto.categoria_id))
+                return BadRequest("Categoría inválida");
+            if (!await _context.Unidades_Medida.AnyAsync(c => c.unidad_id == dto.unidad_id))
+                return BadRequest("Unidad de medida inválida");
+            if (!await _context.Tipos_Productos.AnyAsync(c => c.tipo_producto_id == dto.tipo_producto_id))
+                return BadRequest("Tipo de producto inválido");
+            await _context.SaveChangesAsync();            
             return Ok(producto);
         }
 
@@ -71,8 +92,15 @@ namespace DulcesERP.API.Controllers
             producto.descripcion = dtos.descripcion;
             producto.precio = dtos.precio;
             producto.costo = dtos.costo;
+            producto.activo = dtos.activo;
 
             _context.Productos.Update(producto);
+            if (!await _context.Categorias.AnyAsync(c => c.categoria_id == dtos.categoria_id))
+                return BadRequest("Categoría inválida");
+            if (!await _context.Unidades_Medida.AnyAsync(c => c.unidad_id == dtos.unidad_id))
+                return BadRequest("Unidad de medida inválida");
+            if (!await _context.Tipos_Productos.AnyAsync(c => c.tipo_producto_id == dtos.tipo_producto_id))
+                return BadRequest("Tipo de producto inválido");
             await _context.SaveChangesAsync();
             return Ok(producto);
         }
