@@ -10,24 +10,7 @@ namespace DulcesERP.API.Controllers
     [ApiController]
     [Route("api/auth")]
     public class AuthController : ControllerBase
-    {
-        //private readonly AuthServices _authServices;
-
-        //public AuthController(AuthServices authServices)
-        //{
-        //    _authServices = authServices;
-        //}
-
-        //[HttpPost("login")]
-        //public async Task<IActionResult> Login(LoginRequest request)
-        //{
-        //    var validUser = await _authServices.ValidateUser(request.email, request.password);
-
-        //    if (!validUser)
-        //        return Unauthorized("Credenciales no autorizadas");
-
-        //    return Ok("Login correcto");
-        //}
+    {       
 
         private readonly DulcesERPContext _context;
         private readonly JwtServices _jwtServices;

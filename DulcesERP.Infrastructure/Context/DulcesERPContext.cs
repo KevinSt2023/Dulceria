@@ -21,12 +21,16 @@ namespace DulcesERP.Infrastructure.Context
 
         public DbSet<Tenants> Tenants { get; set; }
         public DbSet<Usuarios> Usuarios { get; set; }
-        public DbSet<Roles> Roles { get; set; }
-        //public DbSet<Usuarios_Roles> Usuarios_Roles { get; set; }
+        public DbSet<Roles> Roles { get; set; }        
         public DbSet<Categorias> Categorias { get; set; }
         public DbSet<Tipos_Productos> Tipos_Productos { get; set; }
         public DbSet<Productos> Productos { get; set; }
         public DbSet<Unidades_Medida> Unidades_Medida { get; set; }
+        public DbSet<Sucursales> Sucursales { get; set; }
+        public DbSet<Almacenes> Almacenes { get; set; }
+        public DbSet<Inventario> Inventario { get; set; }
+        public DbSet<InventarioMovimiento> InventarioMovimientos { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -72,12 +76,38 @@ namespace DulcesERP.Infrastructure.Context
                 entity.HasKey(e => e.unidad_id);
             });
 
+            modelBuilder.Entity<Sucursales>(entity =>
+            {
+                entity.ToTable("sucursales");
+                entity.HasKey(e => e.sucursal_id);
+            });
+
+            modelBuilder.Entity<Almacenes>(entity =>
+            {
+                entity.ToTable("almacenes");
+                entity.HasKey(e => e.almacen_id);
+            });
+
+            modelBuilder.Entity<Inventario>(entity =>
+            {
+                entity.ToTable("inventario");
+                entity.HasKey(e => e.inventario_id);
+            });
+
+            modelBuilder.Entity<InventarioMovimiento>(entity =>
+            {
+                entity.ToTable("inventario_movimientos");
+                entity.HasKey(e => e.movimiento_id);
+            });
+
+
+            //CONFIGURACIÓN PARA GUARDAR FECHAS EN UTC
             modelBuilder.Entity<Productos>()
             .Property(p => p.created_at)
             .HasConversion(
                 v => v,
                 v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
-            );
+            );           
 
 
             //RELACIONES PARA JOINS
@@ -100,6 +130,23 @@ namespace DulcesERP.Infrastructure.Context
                 .HasOne(u => u.roles)
                 .WithMany()
                 .HasForeignKey(u => u.rol_id);
+
+            modelBuilder.Entity<Usuarios>()
+                .HasOne(s => s.sucursales)
+                .WithMany()
+                .HasForeignKey(s => s.sucursal_id);
+
+            modelBuilder.Entity<Almacenes>()
+                .HasOne(s => s.sucursales)
+                .WithMany()
+                .HasForeignKey(s => s.sucursal_id);
+
+            modelBuilder.Entity<Inventario>()
+                .HasOne(i => i.productos)
+                .WithMany()
+                .HasForeignKey(i => i.producto_id);            
+
+
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {

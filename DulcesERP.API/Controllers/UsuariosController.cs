@@ -32,7 +32,9 @@ namespace DulcesERP.API.Controllers
                     u.email,
                     u.activo,
                     u.rol_id,
-                    rolnombre = u.roles.nombre,                    
+                    u.sucursal_id,
+                    rolnombre = u.roles.nombre, 
+                    sucursalnombre = u.sucursales.nombre
                 })
                 .OrderBy(u => u.usuario_id)
                 .ToListAsync();
@@ -59,7 +61,9 @@ namespace DulcesERP.API.Controllers
                 nombre = dto.nombre,
                 email = dto.email,
                 activo = dto.activo,
-                rol_id = dto.rol_id
+                rol_id = dto.rol_id,
+                password_hash = BCrypt.Net.BCrypt.HashPassword(dto.password_hash),
+                sucursal_id = dto.sucursal_id
             };
 
             _context.Usuarios.Add(user);
@@ -80,7 +84,11 @@ namespace DulcesERP.API.Controllers
             usuario.nombre = dto.nombre;
             usuario.email = dto.email;
             usuario.activo = dto.activo;
-            usuario.rol_id = dto.rol_id;            
+            usuario.rol_id = dto.rol_id; 
+            usuario.sucursal_id = dto.sucursal_id;
+
+            if(!string.IsNullOrWhiteSpace(dto.password_hash))
+                usuario.password_hash = BCrypt.Net.BCrypt.HashPassword(dto.password_hash);
 
             await _context.SaveChangesAsync();
 
