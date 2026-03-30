@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36908.2
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DulcesERP.Domain", "DulcesERP.Domain\DulcesERP.Domain.csproj", "{4FE25F5B-511A-44BD-A724-17D51109ACA6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DulcesERP.Application", "DulcesERP.Application\DulcesERP.Application.csproj", "{5E8024A4-6616-4EB3-AADA-5A49F69A593E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DulcesERP.Infrastructure", "DulcesERP.Infrastructure\DulcesERP.Infrastructure.csproj", "{93090B07-6284-42F8-9F79-C40ED4050313}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DulcesERP.API", "DulcesERP.API\DulcesERP.API.csproj", "{53F2B8AA-D5DA-41EE-8C36-0E62C253E1BE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Elementos de la solución", "Elementos de la solución", "{D107F4C8-89CC-BEA8-D3D7-CA6B7733353D}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4FE25F5B-511A-44BD-A724-17D51109ACA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FE25F5B-511A-44BD-A724-17D51109ACA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FE25F5B-511A-44BD-A724-17D51109ACA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FE25F5B-511A-44BD-A724-17D51109ACA6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E8024A4-6616-4EB3-AADA-5A49F69A593E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E8024A4-6616-4EB3-AADA-5A49F69A593E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E8024A4-6616-4EB3-AADA-5A49F69A593E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E8024A4-6616-4EB3-AADA-5A49F69A593E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93090B07-6284-42F8-9F79-C40ED4050313}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93090B07-6284-42F8-9F79-C40ED4050313}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93090B07-6284-42F8-9F79-C40ED4050313}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93090B07-6284-42F8-9F79-C40ED4050313}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53F2B8AA-D5DA-41EE-8C36-0E62C253E1BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53F2B8AA-D5DA-41EE-8C36-0E62C253E1BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53F2B8AA-D5DA-41EE-8C36-0E62C253E1BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53F2B8AA-D5DA-41EE-8C36-0E62C253E1BE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D42545C6-2EBB-4D5A-AD4A-79848052F807}
+	EndGlobalSection
+EndGlobal
