@@ -144,7 +144,12 @@ namespace DulcesERP.Infrastructure.Context
             modelBuilder.Entity<Inventario>()
                 .HasOne(i => i.productos)
                 .WithMany()
-                .HasForeignKey(i => i.producto_id);            
+                .HasForeignKey(i => i.producto_id);
+
+            modelBuilder.Entity<Inventario>()
+                .HasOne(i => i.almacenes)
+                .WithMany()
+                .HasForeignKey(i => i.almacen_id);
 
 
 

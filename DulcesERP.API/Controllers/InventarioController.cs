@@ -29,8 +29,17 @@ namespace DulcesERP.API.Controllers
                     i.producto_id,
                     i.almacen_id,
                     i.stock_actual,
-                    nombre = i.productos.nombre,
+                    i.stock_minimo,
+                    i.stock_maximo,
+                    nombreproducto = i.productos.nombre,
+                    almacennombre = i.almacenes.nombre,
+
+                    estado =
+                    i.stock_actual <= i.stock_minimo ? "BAJO" :
+                    i.stock_actual >= i.stock_maximo ? "ALTO" :
+                    "NORMAL"
                 })
+                .OrderBy(i => i.producto_id)
                 .ToListAsync();
 
             return Ok(data);
@@ -40,8 +49,12 @@ namespace DulcesERP.API.Controllers
         [HttpPost]
         public async Task<IActionResult> RegistrarMovimiento(MovimientoInventarioDTOs dto)
         {
+            // 🔥 VALIDACIONES INICIALES
             if (dto.cantidad <= 0)
                 return BadRequest("Cantidad inválida");
+
+            if (string.IsNullOrWhiteSpace(dto.motivo))
+                return BadRequest("Debe ingresar un motivo");
 
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -70,6 +83,30 @@ namespace DulcesERP.API.Controllers
                 var stockAntes = inventario.stock_actual;
                 var stockDespues = stockAntes;
 
+                // 🔥 VALIDACIONES DE EXISTENCIA
+                var productoExiste = await _context.Productos
+                    .AnyAsync(p => p.producto_id == dto.producto_id);
+
+                var almacenExiste = await _context.Almacenes
+                    .AnyAsync(a => a.almacen_id == dto.almacen_id);
+
+                if (!productoExiste)
+                    return BadRequest("Producto no existe");
+
+                if (!almacenExiste)
+                    return BadRequest("Almacén no existe");
+
+                // 🔥 VALIDAR TIPO
+                var tiposValidos = new[] { "ENTRADA", "SALIDA", "AJUSTE" };
+
+                if (!tiposValidos.Contains(dto.tipo_movimiento))
+                    return BadRequest("Tipo de movimiento inválido");
+
+                // 🔥 REGLAS DE NEGOCIO
+                if (dto.tipo_movimiento == "SALIDA" && inventario.stock_actual < dto.cantidad)
+                    return BadRequest("Stock insuficiente");
+
+                // 🔥 LÓGICA
                 switch (dto.tipo_movimiento)
                 {
                     case "ENTRADA":
@@ -77,23 +114,23 @@ namespace DulcesERP.API.Controllers
                         break;
 
                     case "SALIDA":
-                        if (stockAntes < dto.cantidad)
-                            return BadRequest("Stock insuficiente");
-
                         stockDespues -= (int)dto.cantidad;
                         break;
 
                     case "AJUSTE":
                         stockDespues = (int)dto.cantidad;
                         break;
-
-                    default:
-                        return BadRequest("Tipo inválido");
                 }
 
+                // 🔥 SEGURIDAD FINAL (doble validación)
+                if (stockDespues < 0)
+                    return BadRequest("Stock no puede ser negativo");
+
+                // 🔥 ACTUALIZAR
                 inventario.stock_actual = stockDespues;
                 inventario.updated_at = DateTime.Now;
 
+                // 📜 KARDEX
                 var movimiento = new InventarioMovimiento
                 {
                     producto_id = dto.producto_id,
@@ -114,7 +151,11 @@ namespace DulcesERP.API.Controllers
                 return Ok(new
                 {
                     mensaje = "Movimiento registrado",
-                    stock_actual = stockDespues
+                    stock_actual = stockDespues,    
+                    estado =
+                        stockDespues <= inventario.stock_minimo ? "BAJO" :
+                        stockDespues >= inventario.stock_maximo ? "ALTO" :
+                        "NORMAL"
                 });
             }
             catch
@@ -122,6 +163,40 @@ namespace DulcesERP.API.Controllers
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+
+        [HttpPut("configuracion")]
+        public async Task<IActionResult> ConfigurarStock(InventarioDTOs dto)
+        {
+            var config = await _context.Inventario.FirstOrDefaultAsync(i =>
+                i.producto_id == dto.producto_id &&
+                i.almacen_id == dto.almacen_id);
+
+            if (config == null)
+                return NotFound();
+
+            if (dto.stock_minimo < 0 || dto.stock_maximo < 0)
+                return BadRequest("Valores inválidos");
+
+            if (dto.stock_minimo > dto.stock_maximo)
+                return BadRequest("Stock mínimo no puede ser mayor al máximo");
+
+            if (dto.stock_maximo == 0)
+                return BadRequest("Stock máximo no puede ser 0");
+
+            config.stock_minimo = dto.stock_minimo;
+            config.stock_maximo = dto.stock_maximo;
+            config.updated_at = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Configuración actualizada",
+                config.stock_minimo,
+                config.stock_maximo
+            });
         }
 
     }
