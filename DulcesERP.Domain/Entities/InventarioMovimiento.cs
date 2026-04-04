@@ -12,6 +12,8 @@ namespace DulcesERP.Domain.Entities
         public int movimiento_id { get; set; }
         public int producto_id { get; set; }
         public int almacen_id { get; set; }
+        public Almacenes almacenes { get; set; } = null!;
+        public Productos productos { get; set; } = null!;
         public string tipo_movimiento { get; set; } = string.Empty;
         public int cantidad { get; set; }
         public int? referencia { get; set; }

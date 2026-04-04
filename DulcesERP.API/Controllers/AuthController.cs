@@ -32,7 +32,7 @@ namespace DulcesERP.API.Controllers
             if (user == null)
                 return Unauthorized("Usuario no existe");
 
-            if (user.password_hash.Trim() != request.password.Trim())
+            if (!BCrypt.Net.BCrypt.Verify(request.password, user.password_hash))
                 return Unauthorized("Password incorrecto");
 
             var token = _jwtServices.GenerateToken(

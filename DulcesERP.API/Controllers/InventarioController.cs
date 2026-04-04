@@ -49,7 +49,6 @@ namespace DulcesERP.API.Controllers
         [HttpPost]
         public async Task<IActionResult> RegistrarMovimiento(MovimientoInventarioDTOs dto)
         {
-            // 🔥 VALIDACIONES INICIALES
             if (dto.cantidad <= 0)
                 return BadRequest("Cantidad inválida");
 
@@ -83,7 +82,6 @@ namespace DulcesERP.API.Controllers
                 var stockAntes = inventario.stock_actual;
                 var stockDespues = stockAntes;
 
-                // 🔥 VALIDACIONES DE EXISTENCIA
                 var productoExiste = await _context.Productos
                     .AnyAsync(p => p.producto_id == dto.producto_id);
 
@@ -96,17 +94,14 @@ namespace DulcesERP.API.Controllers
                 if (!almacenExiste)
                     return BadRequest("Almacén no existe");
 
-                // 🔥 VALIDAR TIPO
                 var tiposValidos = new[] { "ENTRADA", "SALIDA", "AJUSTE" };
 
                 if (!tiposValidos.Contains(dto.tipo_movimiento))
                     return BadRequest("Tipo de movimiento inválido");
 
-                // 🔥 REGLAS DE NEGOCIO
                 if (dto.tipo_movimiento == "SALIDA" && inventario.stock_actual < dto.cantidad)
                     return BadRequest("Stock insuficiente");
 
-                // 🔥 LÓGICA
                 switch (dto.tipo_movimiento)
                 {
                     case "ENTRADA":
@@ -122,15 +117,12 @@ namespace DulcesERP.API.Controllers
                         break;
                 }
 
-                // 🔥 SEGURIDAD FINAL (doble validación)
                 if (stockDespues < 0)
                     return BadRequest("Stock no puede ser negativo");
 
-                // 🔥 ACTUALIZAR
                 inventario.stock_actual = stockDespues;
                 inventario.updated_at = DateTime.Now;
 
-                // 📜 KARDEX
                 var movimiento = new InventarioMovimiento
                 {
                     producto_id = dto.producto_id,
@@ -197,6 +189,35 @@ namespace DulcesERP.API.Controllers
                 config.stock_minimo,
                 config.stock_maximo
             });
+        }
+
+        [HttpGet("kardex")]
+        public async Task<IActionResult> GetKardex(int producto_id, int? almacen_id = null)
+        {
+            var query = _context.InventarioMovimientos
+                .Include(m => m.productos)
+                .Include(m => m.almacenes)
+                .Where(m => m.producto_id == producto_id);
+
+            if (almacen_id.HasValue)
+                query = query.Where(m => m.almacen_id == almacen_id);
+
+            var data = await query
+                .OrderBy(m => m.fecha)
+                .Select(m => new
+                {
+                    m.fecha,
+                    m.tipo_movimiento,
+                    m.cantidad,
+                    m.stock_antes,
+                    m.stock_despues,
+                    m.motivo,
+                    producto = m.productos.nombre,
+                    almacen = m.almacenes.nombre
+                })
+                .ToListAsync();
+
+            return Ok(data);
         }
 
     }

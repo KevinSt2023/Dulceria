@@ -151,6 +151,16 @@ namespace DulcesERP.Infrastructure.Context
                 .WithMany()
                 .HasForeignKey(i => i.almacen_id);
 
+            modelBuilder.Entity<InventarioMovimiento>()
+                .HasOne(i => i.productos)
+                .WithMany()
+                .HasForeignKey(i => i.producto_id);
+
+            modelBuilder.Entity<InventarioMovimiento>()
+                .HasOne(i => i.almacenes)
+                .WithMany()
+                .HasForeignKey(i => i.almacen_id);
+
 
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
@@ -205,7 +215,7 @@ namespace DulcesERP.Infrastructure.Context
             var tenantId = _tenantProvider.GetTenantId();
 
             if (tenantId == 0)
-                return;
+                throw new Exception("Tenant no definido");
 
             var entries = ChangeTracker
                 .Entries<TenantEntity>()

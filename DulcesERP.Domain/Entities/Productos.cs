@@ -21,7 +21,7 @@ namespace DulcesERP.Domain.Entities
         public string descripcion { get; set; } = string.Empty;
         public decimal precio { get; set; }
         public decimal costo { get; set; }
-        public bool activo { get; set; }
+        public bool activo { get; set; } = true;
         public DateTime created_at { get; set; }
     }
 }
