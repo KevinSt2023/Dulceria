@@ -122,3 +122,15 @@ C:\Users\Pc\Desktop\Dulceria\DulcesERP.API\obj\Debug\net8.0\DulcesERP.API.pdb
 C:\Users\Pc\Desktop\Dulceria\DulcesERP.API\obj\Debug\net8.0\DulcesERP.API.genruntimeconfig.cache
 C:\Users\Pc\Desktop\Dulceria\DulcesERP.API\obj\Debug\net8.0\ref\DulcesERP.API.dll
 C:\Users\Pc\Desktop\Dulceria\DulcesERP.API\bin\Debug\net8.0\BCrypt.Net-Next.dll
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.csproj.AssemblyReference.cache
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\rpswa.dswa.cache.json
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.AssemblyInfoInputs.cache
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.AssemblyInfo.cs
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.csproj.CoreCompileInputs.cache
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.MvcApplicationPartsAssemblyInfo.cs
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.MvcApplicationPartsAssemblyInfo.cache
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.sourcelink.json
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.dll
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\refint\DulcesERP.API.dll
+C:\Users\Pc\Desktop\Dulceria\Dulceria\obj\Debug\net8.0\DulcesERP.API.pdb

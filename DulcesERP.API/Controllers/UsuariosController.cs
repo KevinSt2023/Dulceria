@@ -4,8 +4,6 @@ using DulcesERP.Domain.Entities;
 using DulcesERP.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
-using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace DulcesERP.API.Controllers
 {

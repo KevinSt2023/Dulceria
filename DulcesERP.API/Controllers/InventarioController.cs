@@ -192,18 +192,25 @@ namespace DulcesERP.API.Controllers
         }
 
         [HttpGet("kardex")]
-        public async Task<IActionResult> GetKardex(int producto_id, int? almacen_id = null)
+        public async Task<IActionResult> GetKardex(int producto_id, int? almacen_id = null, DateTime? inicio = null, DateTime? fin = null)
         {
             var query = _context.InventarioMovimientos
                 .Include(m => m.productos)
                 .Include(m => m.almacenes)
                 .Where(m => m.producto_id == producto_id);
 
+
             if (almacen_id.HasValue)
                 query = query.Where(m => m.almacen_id == almacen_id);
 
+            if (inicio.HasValue)
+                query = query.Where(m => m.fecha >= inicio.Value);
+
+            if (fin.HasValue)
+                query = query.Where(m => m.fecha <= fin.Value);
+
             var data = await query
-                .OrderBy(m => m.fecha)
+                .OrderByDescending(m => m.fecha)
                 .Select(m => new
                 {
                     m.fecha,

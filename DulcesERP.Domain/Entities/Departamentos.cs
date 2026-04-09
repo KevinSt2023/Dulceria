@@ -6,11 +6,10 @@ using System.Threading.Tasks;
 
 namespace DulcesERP.Domain.Entities
 {
-    public class Unidades_Medida
+    public class Departamentos
     {
-        public int unidad_id { get; set; }
+        public int departamento_id { get; set; }
         public string nombre { get; set; } = string.Empty;
-        public string abreviatura { get; set; } = string.Empty;
-        public bool activo { get; set; } = true;    
+        public ICollection<Provincia> Provincias { get; set; } = new List<Provincia>();
     }
 }

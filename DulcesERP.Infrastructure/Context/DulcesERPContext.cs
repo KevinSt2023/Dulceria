@@ -30,27 +30,86 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<Almacenes> Almacenes { get; set; }
         public DbSet<Inventario> Inventario { get; set; }
         public DbSet<InventarioMovimiento> InventarioMovimientos { get; set; }
+        public DbSet<Clientes> Clientes { get; set; }
+        public DbSet<Departamentos> Departamentos { get; set; }
+        public DbSet<Provincia> Provincias { get; set; }
+        public DbSet<Distritos> Distritos { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            
             modelBuilder.Entity<Tenants>(entity =>
             {
                 entity.ToTable("tenants");
                 entity.HasKey(e => e.tenant_id);
             });
 
+            modelBuilder.Entity<Departamentos>(entity =>
+            {
+                entity.ToTable("departamentos");
+                entity.HasKey(e => e.departamento_id);
+            });
+
+            modelBuilder.Entity<Provincia>(entity =>
+            {
+                entity.ToTable("provincias");
+                entity.HasKey(e => e.provincia_id);
+
+                entity.Property(e => e.departamento_id)
+                    .HasColumnName("departamento_id");
+
+                entity.HasOne(p => p.Departamento)
+                    .WithMany(d => d.Provincias)
+                    .HasForeignKey(p => p.departamento_id)
+                    .HasConstraintName("fk_departamentos")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Distritos>(entity =>
+            {
+                entity.ToTable("distritos");
+                entity.HasKey(e => e.distrito_id);
+
+                entity.HasOne(d => d.Provincia)
+                    .WithMany(p => p.Distritos)
+                    .HasForeignKey(d => d.provincia_id)
+                    .HasConstraintName("fk_provincias")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<Usuarios>(entity =>
             {
                 entity.ToTable("usuarios");
                 entity.HasKey(e => e.usuario_id);                
-            });
+            });           
 
             modelBuilder.Entity<Roles>(entity =>
             {
                 entity.ToTable("roles");
                 entity.HasKey(e => e.rol_id);
-            });            
+            });
+
+            modelBuilder.Entity<Clientes>(entity =>
+            {
+                entity.ToTable("clientes");
+                entity.HasKey(e => e.cliente_id);
+
+                entity.HasOne(c => c.departamentos)
+                   .WithMany()
+                   .HasForeignKey(c => c.departamento_id)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.provincia)
+                    .WithMany()
+                    .HasForeignKey(c => c.provincia_id)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.distrito)
+                    .WithMany()
+                    .HasForeignKey(c => c.distrito_id)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
             modelBuilder.Entity<Categorias>(entity =>
             {
@@ -159,8 +218,7 @@ namespace DulcesERP.Infrastructure.Context
             modelBuilder.Entity<InventarioMovimiento>()
                 .HasOne(i => i.almacenes)
                 .WithMany()
-                .HasForeignKey(i => i.almacen_id);
-
+                .HasForeignKey(i => i.almacen_id);           
 
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())

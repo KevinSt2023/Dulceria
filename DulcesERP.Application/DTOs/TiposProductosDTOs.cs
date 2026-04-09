@@ -8,7 +8,7 @@ namespace DulcesERP.Application.DTOs
 {
     public class TiposProductosDTOs
     {
-        public string nombre { get; set; }
+        public string nombre { get; set; } = string.Empty;
         public bool activo { get; set; }
     }
 }

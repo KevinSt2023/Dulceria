@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DulcesERP.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ae7f5d822ade48f5a10b1384f3994c2bcd0e02bb")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d4172b835a9dbd9f8cf6aa68bde567130933c1d9")]
 [assembly: System.Reflection.AssemblyProductAttribute("DulcesERP.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DulcesERP.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
