@@ -34,6 +34,9 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<Departamentos> Departamentos { get; set; }
         public DbSet<Provincia> Provincias { get; set; }
         public DbSet<Distritos> Distritos { get; set; }
+        public DbSet<Pedidos> Pedidos { get; set; }
+        public DbSet<PedidoDetalle> PedidoDetalles { get; set; }
+        public DbSet<EstadosPedido> EstadosPedido { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -159,6 +162,24 @@ namespace DulcesERP.Infrastructure.Context
                 entity.HasKey(e => e.movimiento_id);
             });
 
+            modelBuilder.Entity<Pedidos>(entity =>
+            {
+               entity.ToTable("pedidos");
+                entity.HasKey(e => e.pedido_id);
+            });
+
+            modelBuilder.Entity<PedidoDetalle>(entity =>
+            {
+                entity.ToTable("pedido_detalle");
+                entity.HasKey(e => e.detalle_id);
+            });
+
+            modelBuilder.Entity<EstadosPedido>(entity =>
+            {
+                entity.ToTable("estados_pedido");
+                entity.HasKey(e => e.estado_pedido_id);
+            });
+
 
             //CONFIGURACIÓN PARA GUARDAR FECHAS EN UTC
             modelBuilder.Entity<Productos>()
@@ -218,7 +239,44 @@ namespace DulcesERP.Infrastructure.Context
             modelBuilder.Entity<InventarioMovimiento>()
                 .HasOne(i => i.almacenes)
                 .WithMany()
-                .HasForeignKey(i => i.almacen_id);           
+                .HasForeignKey(i => i.almacen_id);    
+            
+            modelBuilder.Entity<Pedidos>()
+                .HasOne(p => p.clientes)
+                .WithMany()
+                .HasForeignKey(p => p.cliente_id);
+
+            modelBuilder.Entity<Pedidos>()
+                .HasOne(p => p.usuarios)
+                .WithMany()
+                .HasForeignKey(p => p.usuario_id);
+
+            modelBuilder.Entity<Pedidos>()
+                .HasOne(p => p.estados_pedidos)
+                .WithMany(e => e.pedidos)
+                .HasForeignKey(p => p.estado_pedido_id);
+
+            modelBuilder.Entity<Pedidos>()
+                .HasOne(p => p.sucursales)
+                .WithMany()
+                .HasForeignKey(p => p.sucursal_id);
+
+            modelBuilder.Entity<PedidoDetalle>()
+                .HasOne(d => d.pedidos)
+                .WithMany(p => p.pedido_detalle)
+                .HasForeignKey(d => d.pedido_id);
+
+            modelBuilder.Entity<PedidoDetalle>()
+                .HasOne(d => d.productos)
+                .WithMany()
+                .HasForeignKey(d => d.producto_id);
+
+            //INDEXs
+            modelBuilder.Entity<Pedidos>()
+                .HasIndex(p => new { p.tenant_id, p.estado_pedido_id });
+
+            modelBuilder.Entity<Pedidos>()
+                .HasIndex(p => new { p.tenant_id, p.fecha });
 
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
