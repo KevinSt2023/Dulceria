@@ -11,6 +11,9 @@ namespace DulcesERP.Application.DTOs
         public int cliente_id { get; set; }
         public int usuario_id { get; set; }
         public int sucursal_id { get; set; }
+        public string? observaciones { get; set; }
+        public string? direccion_entrega {  get; set; }
+        public string? tipos_pedido { get; set; }
         public List<PedidoDetalleDTOs>? detalles { get; set; }
     }
 }
