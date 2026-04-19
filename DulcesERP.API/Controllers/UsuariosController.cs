@@ -20,18 +20,12 @@ namespace DulcesERP.API.Controllers
             _context = context;
         }
 
-        // ─────────────────────────────────────────────
-        // HELPERS
-        // ─────────────────────────────────────────────
         private int GetRolId() => int.Parse(User.FindFirstValue("rol_id")!);
         private int GetSucursalId() => int.Parse(User.FindFirstValue("sucursal_id")!);
         private bool EsSuperAdmin() => GetRolId() == 0;
         private bool EsAdmin() => GetRolId() == 1;
 
-        // ─────────────────────────────────────────────
-        // GET /api/usuarios
-        // SuperAdmin ve todos · Admin solo ve su sucursal
-        // ─────────────────────────────────────────────
+       
         [HttpGet]
         public async Task<IActionResult> GetUsuarios()
         {
@@ -59,9 +53,7 @@ namespace DulcesERP.API.Controllers
             return Ok(usuarios);
         }
 
-        // ─────────────────────────────────────────────
-        // GET /api/usuarios/{id}
-        // ─────────────────────────────────────────────
+        
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUsuario(int id)
         {
@@ -78,11 +70,7 @@ namespace DulcesERP.API.Controllers
             return Ok(user);
         }
 
-        // ─────────────────────────────────────────────
-        // POST /api/usuarios
-        // Admin solo puede crear usuarios para su sucursal
-        // y no puede asignar rol SuperAdmin ni Admin
-        // ─────────────────────────────────────────────
+      
         [HttpPost]
         public async Task<IActionResult> CreateUsuario(UsuariosDTOs dto)
         {
@@ -127,11 +115,7 @@ namespace DulcesERP.API.Controllers
             });
         }
 
-        // ─────────────────────────────────────────────
-        // PUT /api/usuarios/{id}
-        // Admin no puede mover usuarios a otra sucursal
-        // ni cambiarles el rol a Admin/SuperAdmin
-        // ─────────────────────────────────────────────
+        
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUsuario(int id, UsuariosDTOs dto)
         {
@@ -177,11 +161,7 @@ namespace DulcesERP.API.Controllers
             });
         }
 
-        // ─────────────────────────────────────────────
-        // DELETE /api/usuarios/{id}
-        // Soft delete — solo desactiva
-        // Admin no puede eliminar usuarios de otra sucursal
-        // ─────────────────────────────────────────────
+        
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUsuario(int id)
         {

@@ -17,7 +17,7 @@ namespace DulcesERP.Domain.Entities
         public DateTime created_at { get; set; }
         public int rol_id { get; set; }
         public int sucursal_id { get; set; }
-        public Roles roles { get; set; } = null!;   
-        public Sucursales sucursales { get; set; } = null!; 
+        public Roles? roles { get; set; } = null!;   
+        public Sucursales? sucursales { get; set; } = null!; 
     }
 }

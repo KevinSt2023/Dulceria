@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using DulcesERP.Application.DTOs;
+﻿using DulcesERP.Application.DTOs;
 using DulcesERP.Domain.Entities;
 using DulcesERP.Infrastructure.Context;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace DulcesERP.API.Controllers
 {
@@ -22,7 +23,23 @@ namespace DulcesERP.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetSucursales()
         {
-            var sucursales = await _context.Sucursales
+            var rolId = int.Parse(User.FindFirstValue("rol_id")!);
+            var sucursalId = int.Parse(User.FindFirstValue("sucursal_id")!);
+
+            var query = _context.Sucursales.AsQueryable();
+
+            // Admin solo ve su sucursal en el panel de configuración
+            // SuperAdmin ve todas
+            // Para el selector de pickup en pedidos, el frontend llama con ?todas=true
+            var todasParam = Request.Query.ContainsKey("todas");
+
+            if (rolId != 0 && !todasParam)
+            {
+                query = query.Where(s => s.sucursal_id == sucursalId);
+            }
+
+            var sucursales = await query
+                .Where(s => s.activo == true)
                 .Select(s => new
                 {
                     s.sucursal_id,
@@ -33,6 +50,7 @@ namespace DulcesERP.API.Controllers
                 })
                 .OrderBy(s => s.sucursal_id)
                 .ToListAsync();
+
             return Ok(sucursales);
         }
 

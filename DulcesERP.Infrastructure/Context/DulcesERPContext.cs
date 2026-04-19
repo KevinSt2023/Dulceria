@@ -16,9 +16,9 @@ namespace DulcesERP.Infrastructure.Context
         public DulcesERPContext(DbContextOptions<DulcesERPContext> options, TenantProvider tenantProvider) : base(options)
         {
             _tenantProvider = tenantProvider;
-        }        
-        
+        }
 
+        public DbSet<ProductoSucursal> ProductoSucursales { get; set; }
         public DbSet<Tenants> Tenants { get; set; }
         public DbSet<Usuarios> Usuarios { get; set; }
         public DbSet<Roles> Roles { get; set; }        
@@ -79,6 +79,20 @@ namespace DulcesERP.Infrastructure.Context
                     .HasForeignKey(d => d.provincia_id)
                     .HasConstraintName("fk_provincias")
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ProductoSucursal>(entity =>
+            {
+                entity.ToTable("producto_sucursal");
+                entity.HasKey(e => new { e.producto_id, e.sucursal_id });
+
+                entity.HasOne(ps => ps.productos)
+                    .WithMany()
+                    .HasForeignKey(ps => ps.producto_id);
+
+                entity.HasOne(ps => ps.sucursales)
+                    .WithMany()
+                    .HasForeignKey(ps => ps.sucursal_id);
             });
 
             modelBuilder.Entity<Usuarios>(entity =>

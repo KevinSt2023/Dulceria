@@ -111,17 +111,23 @@ namespace DulcesERP.API.Controllers
         public async Task<IActionResult> SearchCliente(string documento)
         {
             var cliente = await _context.Clientes
-        .Where(c => c.documento == documento)
-        .Select(c => new
-        {
-            c.cliente_id,
-            c.nombre,
-            c.documento,
-            c.telefono,
-            c.direccion,
-            c.email
-        })
-        .FirstOrDefaultAsync();
+                .Where(c => c.documento == documento)
+                .Select(c => new
+                {
+                    c.cliente_id,
+                    c.nombre,
+                    c.documento,
+                    c.telefono,
+                    c.direccion,
+                    c.email,
+                    c.departamento_id,
+                    c.provincia_id,
+                    c.distrito_id,
+                    departamento_nombre = c.departamentos != null ? c.departamentos.nombre : null,
+                    provincia_nombre = c.provincia != null ? c.provincia.nombre : null,
+                    distrito_nombre = c.distrito != null ? c.distrito.nombre : null
+                })
+                .FirstOrDefaultAsync();
 
             if (cliente == null)
                 return NotFound();

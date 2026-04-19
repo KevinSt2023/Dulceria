@@ -26,7 +26,10 @@ namespace DulcesERP.API.Controllers
         {
             var user = await _context.Usuarios
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(u => u.email.Trim().ToLower() == request.email.Trim().ToLower());
+                .Include(u => u.roles)
+                .Include(u => u.sucursales)
+                .FirstOrDefaultAsync(u =>
+                    u.email.Trim().ToLower() == request.email.Trim().ToLower());
 
             if (user == null)
                 return Unauthorized("Usuario no existe");
@@ -34,15 +37,30 @@ namespace DulcesERP.API.Controllers
             if (!BCrypt.Net.BCrypt.Verify(request.password, user.password_hash))
                 return Unauthorized("Password incorrecto");
 
+            // Nombre de sucursal — SuperAdmin (rol 0) ve todas
+            var sucursalNombre = user.rol_id == 0
+                ? "Todas las sucursales"
+                : user.sucursales?.nombre ?? $"Sucursal #{user.sucursal_id}";
+
+            var rolNombre = user.roles?.nombre ?? "Sin rol";
+
             var token = _jwtServices.GenerateToken(
-                user.usuario_id,
-                user.tenant_id,
-                user.sucursal_id,
-                user.rol_id,
-                user.email
+                userId: user.usuario_id,
+                tenantId: user.tenant_id,
+                sucursalId: user.sucursal_id,
+                sucursalNombre: sucursalNombre,
+                rolId: user.rol_id,
+                rolNombre: rolNombre,
+                email: user.email
             );
 
-            return Ok(new { token });
+            return Ok(new
+            {
+                token,
+                sucursal_nombre = sucursalNombre,
+                rol_nombre = rolNombre,
+                rol_id = user.rol_id
+            });
         }
     }
 }

@@ -16,7 +16,7 @@ namespace DulcesERP.Application.Services
             _configuration = configuration;
         }
 
-        public string GenerateToken(int userId, int tenantId, int sucursalId, int rolId, string email)
+        public string GenerateToken(int userId, int tenantId, int sucursalId, string sucursalNombre,int rolId, string rolNombre, string email)
         {
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)
@@ -29,7 +29,9 @@ namespace DulcesERP.Application.Services
                 new Claim("usuario_id",  userId.ToString()),
                 new Claim("tenant_id",   tenantId.ToString()),
                 new Claim("sucursal_id", sucursalId.ToString()),
+                new Claim("sucursal_nombre", sucursalNombre),
                 new Claim("rol_id",      rolId.ToString()),
+                new Claim("rol_nombre",  rolNombre),
                 new Claim(ClaimTypes.Email, email)
             };
 

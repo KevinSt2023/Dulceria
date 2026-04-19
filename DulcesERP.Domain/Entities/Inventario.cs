@@ -14,7 +14,8 @@ namespace DulcesERP.Domain.Entities
         public int almacen_id { get; set; }
         public Almacenes almacenes { get; set; } = null!;
         public Productos productos { get; set; } = null!;
-        public int stock_actual { get; set; }
+        public decimal stock_actual { get; set; }
+        public int stock_reservado { get; set; }
         public int stock_minimo { get; set; }
         public int stock_maximo { get; set; }
         public DateTime updated_at { get; set; }        

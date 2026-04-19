@@ -1,7 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
+﻿using DulcesERP.Application.Services;
 using DulcesERP.Infrastructure.Context;
+using DulcesERP.Infrastructure.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using DulcesERP.Domain.Entities;
 using DulcesERP.Application.DTOs;
 using System.Security.Claims;
@@ -15,14 +18,12 @@ namespace DulcesERP.API.Controllers
     {
         private readonly DulcesERPContext _context;
 
-        // Transiciones válidas: desde un estado, a cuáles puede avanzar
         private static readonly Dictionary<int, int[]> _transicionesPermitidas = new()
         {
-            { 1, new[] { 2, 6 } },      // PENDIENTE       → CONFIRMADO, CANCELADO
-            { 2, new[] { 3, 6 } },      // CONFIRMADO      → EN_PREPARACION, CANCELADO
-            { 3, new[] { 4, 6 } },      // EN_PREPARACION  → LISTO, CANCELADO
-            { 4, new[] { 5, 6 } },      // LISTO           → ENTREGADO, CANCELADO
-            // ENTREGADO y CANCELADO son estados finales, no se pueden mover
+            { 1, new[] { 2, 6 } },
+            { 2, new[] { 3, 6 } },
+            { 3, new[] { 4, 6 } },
+            { 4, new[] { 5, 6 } },
         };
 
         public PedidosController(DulcesERPContext context)
@@ -30,20 +31,34 @@ namespace DulcesERP.API.Controllers
             _context = context;
         }
 
-        // ─────────────────────────────────────────────
-        // HELPERS — leer claims del JWT
-        // ─────────────────────────────────────────────
-
         private int GetUsuarioId() =>
             int.Parse(User.FindFirstValue("usuario_id")!);
 
         private int GetSucursalId() =>
             int.Parse(User.FindFirstValue("sucursal_id")!);
 
+        // ─────────────────────────────────────────────
+        // Helper: lee permite_pedido_sin_stock por sede
+        // Si no hay config por sede, usa el valor global
+        // ─────────────────────────────────────────────
+        private async Task<bool> PermiteSinStock(int productoId, int sucursalId)
+        {
+            var configSede = await _context.ProductoSucursales
+                .FirstOrDefaultAsync(ps =>
+                    ps.producto_id == productoId &&
+                    ps.sucursal_id == sucursalId);
+
+            if (configSede != null)
+                return configSede.permite_pedido_sin_stock;
+
+            var producto = await _context.Productos
+                .FirstOrDefaultAsync(p => p.producto_id == productoId);
+
+            return producto?.permite_pedido_sin_stock ?? true;
+        }
 
         // ─────────────────────────────────────────────
         // GET /api/pedidos
-        // Solo devuelve pedidos de la sucursal del usuario logueado
         // ─────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetPedidos()
@@ -85,7 +100,6 @@ namespace DulcesERP.API.Controllers
             return Ok(data);
         }
 
-
         [HttpGet("{id}")]
         public async Task<IActionResult> GetPedido(int id)
         {
@@ -106,7 +120,9 @@ namespace DulcesERP.API.Controllers
             return Ok(pedido);
         }
 
-        
+        // ─────────────────────────────────────────────
+        // POST /api/pedidos — CREA Y RESERVA STOCK
+        // ─────────────────────────────────────────────
         [HttpPost]
         public async Task<IActionResult> CrearPedido([FromBody] CrearPedidoDTOs dto)
         {
@@ -123,7 +139,6 @@ namespace DulcesERP.API.Controllers
                 if (estadoPendiente == null)
                     return BadRequest("Estado inicial no configurado en BD");
 
-                // Tomar del JWT — no del body
                 var usuarioId = GetUsuarioId();
                 var sucursalId = GetSucursalId();
 
@@ -155,7 +170,6 @@ namespace DulcesERP.API.Controllers
                     decimal precio = producto.precio ?? 0m;
                     int cantidad = (int)item.cantidad;
                     decimal subtotal = precio * cantidad;
-
                     total += subtotal;
 
                     _context.PedidoDetalles.Add(new PedidoDetalle
@@ -166,6 +180,35 @@ namespace DulcesERP.API.Controllers
                         precio = precio,
                         subtotal = subtotal
                     });
+
+                    // ── Leer permite_pedido_sin_stock por sede ──
+                    bool permiteSinStock = await PermiteSinStock(
+                        producto.producto_id, sucursalId);
+
+                    if (!permiteSinStock)
+                    {
+                        var inventario = await _context.Inventario
+                            .Include(i => i.almacenes)
+                            .FirstOrDefaultAsync(i =>
+                                i.producto_id == producto.producto_id &&
+                                i.almacenes.sucursal_id == sucursalId);
+
+                        if (inventario == null)
+                            return BadRequest(
+                                $"Producto '{producto.nombre}' no tiene inventario " +
+                                $"en esta sucursal");
+
+                        int disponible = (int)inventario.stock_actual
+                                         - inventario.stock_reservado;
+
+                        if (disponible < cantidad)
+                            return BadRequest(
+                                $"Stock insuficiente para '{producto.nombre}'. " +
+                                $"Disponible: {disponible}, solicitado: {cantidad}");
+
+                        inventario.stock_reservado += cantidad;
+                        inventario.updated_at = DateTime.UtcNow;
+                    }
                 }
 
                 pedido.total = total;
@@ -187,7 +230,9 @@ namespace DulcesERP.API.Controllers
             }
         }
 
-       
+        // ─────────────────────────────────────────────
+        // PUT /api/pedidos/{id}/estado
+        // ─────────────────────────────────────────────
         [HttpPut("{id}/estado")]
         public async Task<IActionResult> CambiarEstado(int id, [FromBody] int estado_id)
         {
@@ -195,46 +240,37 @@ namespace DulcesERP.API.Controllers
 
             try
             {
-                bool permitido = false;
                 var sucursalId = GetSucursalId();
                 var rolId = int.Parse(User.FindFirstValue("rol_id")!);
+
                 var pedido = await _context.Pedidos
                     .Include(p => p.pedido_detalle)
-                    .FirstOrDefaultAsync(p => p.pedido_id == id && p.sucursal_id == sucursalId);
-
-                switch (rolId)
-                {
-                    case 0:
-                        permitido = true; break;
-                        // Superadmin
-                    case 1: // Admin
-                        permitido = true; break;
-
-                    case 3: // Produccion
-                        permitido = estado_id == 2 || estado_id == 3;
-                        break;
-
-                    case 4: // Cajero
-                        permitido = estado_id == 4 || estado_id == 5;
-                        break;
-
-                    case 5: // Distribuidor
-                        permitido = estado_id == 5;
-                        break;
-                }
-
-                if (!permitido)
-                    return Forbid("No tienes permiso para cambiar a este estado");
-
+                    .FirstOrDefaultAsync(p =>
+                        p.pedido_id == id && p.sucursal_id == sucursalId);
 
                 if (pedido == null)
                     return NotFound("Pedido no encontrado");
 
-                // Validar que la transición esté permitida
-                if (!_transicionesPermitidas.TryGetValue(pedido.estado_pedido_id, out var permitidos)
+                bool permitido = rolId switch
+                {
+                    0 => true,
+                    1 => true,
+                    3 => estado_id == 2 || estado_id == 3,
+                    4 => estado_id == 4 || estado_id == 5,
+                    5 => estado_id == 5,
+                    _ => false
+                };
+
+                if (!permitido)
+                    return Forbid();
+
+                if (!_transicionesPermitidas.TryGetValue(
+                        pedido.estado_pedido_id, out var permitidos)
                     || !permitidos.Contains(estado_id))
                 {
-                    return BadRequest($"Transición de estado no permitida: {pedido.estado_pedido_id} → {estado_id}");
+                    return BadRequest(
+                        $"Transición no permitida: " +
+                        $"{pedido.estado_pedido_id} → {estado_id}");
                 }
 
                 var estado = await _context.EstadosPedido
@@ -243,12 +279,17 @@ namespace DulcesERP.API.Controllers
                 if (estado == null)
                     return BadRequest("Estado inválido");
 
-                // ── Descuento de stock al marcar ENTREGADO (estado_id = 5) ──
+                // ── ENTREGADO (5): descontar stock y liberar reserva ──
                 if (estado_id == 5)
                 {
                     foreach (var detalle in pedido.pedido_detalle)
                     {
-                        // Busca el inventario del producto en el almacén de la sucursal
+                        // ← Leer por sede
+                        bool permiteSinStock = await PermiteSinStock(
+                            detalle.producto_id, sucursalId);
+
+                        if (permiteSinStock) continue;
+
                         var inventario = await _context.Inventario
                             .Include(i => i.almacenes)
                             .FirstOrDefaultAsync(i =>
@@ -256,19 +297,23 @@ namespace DulcesERP.API.Controllers
                                 i.almacenes.sucursal_id == sucursalId);
 
                         if (inventario == null)
-                            return BadRequest($"Sin registro de inventario para producto {detalle.producto_id}");
+                            return BadRequest(
+                                $"Sin inventario para producto {detalle.producto_id}");
 
                         if (inventario.stock_actual < detalle.cantidad)
-                            return BadRequest($"Stock insuficiente para producto {detalle.producto_id}. " +
-                                              $"Disponible: {inventario.stock_actual}, requerido: {detalle.cantidad}");
+                            return BadRequest(
+                                $"Stock insuficiente para producto {detalle.producto_id}. " +
+                                $"Disponible: {inventario.stock_actual}, " +
+                                $"requerido: {detalle.cantidad}");
 
-                        int stockAntes = inventario.stock_actual;
+                        int stockAntes = (int)inventario.stock_actual;
                         int stockDespues = stockAntes - detalle.cantidad;
 
                         inventario.stock_actual = stockDespues;
+                        inventario.stock_reservado = Math.Max(
+                            0, inventario.stock_reservado - detalle.cantidad);
                         inventario.updated_at = DateTime.UtcNow;
 
-                        // Registra el movimiento de salida
                         _context.InventarioMovimientos.Add(new InventarioMovimiento
                         {
                             producto_id = detalle.producto_id,
@@ -302,36 +347,72 @@ namespace DulcesERP.API.Controllers
             }
         }
 
-
+        // ─────────────────────────────────────────────
+        // PUT /api/pedidos/{id}/cancelar — LIBERA RESERVA
+        // ─────────────────────────────────────────────
         [HttpPut("{id}/cancelar")]
         public async Task<IActionResult> CancelarPedido(int id)
         {
-            var sucursalId = GetSucursalId();
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            var pedido = await _context.Pedidos
-                .FirstOrDefaultAsync(p => p.pedido_id == id && p.sucursal_id == sucursalId);
+            try
+            {
+                var sucursalId = GetSucursalId();
 
-            if (pedido == null)
-                return NotFound("Pedido no encontrado");
+                var pedido = await _context.Pedidos
+                    .Include(p => p.pedido_detalle)
+                    .FirstOrDefaultAsync(p =>
+                        p.pedido_id == id && p.sucursal_id == sucursalId);
 
-            // No se puede cancelar lo que ya está entregado o ya cancelado
-            if (pedido.estado_pedido_id == 5)
-                return BadRequest("No se puede cancelar un pedido ya entregado");
+                if (pedido == null)
+                    return NotFound("Pedido no encontrado");
 
-            if (pedido.estado_pedido_id == 6)
-                return BadRequest("El pedido ya está cancelado");
+                if (pedido.estado_pedido_id == 5)
+                    return BadRequest("No se puede cancelar un pedido ya entregado");
 
-            var estadoCancelado = await _context.EstadosPedido
-                .FirstOrDefaultAsync(e => e.nombre == "CANCELADO");
+                if (pedido.estado_pedido_id == 6)
+                    return BadRequest("El pedido ya está cancelado");
 
-            if (estadoCancelado == null)
-                return BadRequest("Estado CANCELADO no configurado en BD");
+                var estadoCancelado = await _context.EstadosPedido
+                    .FirstOrDefaultAsync(e => e.nombre == "CANCELADO");
 
-            pedido.estado_pedido_id = estadoCancelado.estado_pedido_id;
+                if (estadoCancelado == null)
+                    return BadRequest("Estado CANCELADO no configurado en BD");
 
-            await _context.SaveChangesAsync();
+                // ── Liberar reservas ──
+                foreach (var detalle in pedido.pedido_detalle)
+                {
+                    // ← Leer por sede
+                    bool permiteSinStock = await PermiteSinStock(
+                        detalle.producto_id, sucursalId);
 
-            return Ok(new { mensaje = "Pedido cancelado" });
+                    if (permiteSinStock) continue;
+
+                    var inventario = await _context.Inventario
+                        .Include(i => i.almacenes)
+                        .FirstOrDefaultAsync(i =>
+                            i.producto_id == detalle.producto_id &&
+                            i.almacenes.sucursal_id == sucursalId);
+
+                    if (inventario == null) continue;
+
+                    inventario.stock_reservado = Math.Max(
+                        0, inventario.stock_reservado - detalle.cantidad);
+                    inventario.updated_at = DateTime.UtcNow;
+                }
+
+                pedido.estado_pedido_id = estadoCancelado.estado_pedido_id;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { mensaje = "Pedido cancelado" });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }
