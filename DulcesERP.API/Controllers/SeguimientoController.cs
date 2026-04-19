@@ -32,10 +32,17 @@ namespace DulcesERP.API.Controllers
             var sucursalId = GetSucursalId();
             var rolId = GetRolId();
 
-            if (rolId != 0 && rolId != 1 && rolId != 3)
+            if (rolId != 0 && rolId != 1 && rolId != 3 && rolId != 5)
                 return Forbid();
 
-            var estadosVisibles = new[] { 1, 2, 3 };
+            int[] estadosVisibles;
+
+            if (rolId == 5)
+                estadosVisibles = new[] { 4 };
+            else if (rolId == 3)
+                estadosVisibles = new[] { 1, 2, 3 };
+            else
+                estadosVisibles = new[] { 1, 2, 3, 4 };
 
             var pedidos = await _context.Pedidos
                 .AsNoTracking()
@@ -86,7 +93,8 @@ namespace DulcesERP.API.Controllers
                 observaciones = p.observaciones,
                 fecha = p.fecha,
                 total = p.total,
-
+                pagado = p.pagado,      // ← nuevo
+                metodo_pago = p.metodo_pago, // ← nuevo
                 detalles = p.pedido_detalle.Select(d =>
                 {
                     var stock = stockDict.TryGetValue(d.producto_id, out var s) ? s : 0;

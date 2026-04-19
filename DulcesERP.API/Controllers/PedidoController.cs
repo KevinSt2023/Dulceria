@@ -20,10 +20,12 @@ namespace DulcesERP.API.Controllers
 
         private static readonly Dictionary<int, int[]> _transicionesPermitidas = new()
         {
-            { 1, new[] { 2, 6 } },
-            { 2, new[] { 3, 6 } },
-            { 3, new[] { 4, 6 } },
-            { 4, new[] { 5, 6 } },
+            { 1, new[] { 2, 6 } },  // PENDIENTE → CONFIRMADO o CANCELADO
+            { 2, new[] { 3, 6 } },  // CONFIRMADO → EN_PREPARACION o CANCELADO
+            { 3, new[] { 4, 6 } },  // EN_PREPARACION → LISTO o CANCELADO
+            { 4, new[] { 5, 6 , 7} },  // LISTO → ENTREGADO o CANCELADO y DESPACHADO
+            { 7, new[] { 5, 6 } },  // DESPACHADO → ENTREGADO o CANCELADO
+             // ENTREGADO (5) y CANCELADO (6) son estados finales
         };
 
         public PedidosController(DulcesERPContext context)
@@ -86,6 +88,8 @@ namespace DulcesERP.API.Controllers
                     p.observaciones,
                     p.direccion_entrega,
                     p.tipos_pedido,
+                    p.pagado,
+                    p.metodo_pago,
                     detalles = p.pedido_detalle.Select(d => new
                     {
                         producto = d.productos.nombre,
@@ -153,6 +157,8 @@ namespace DulcesERP.API.Controllers
                     observaciones = dto.observaciones,
                     direccion_entrega = dto.direccion_entrega,
                     tipos_pedido = dto.tipos_pedido,
+                    pagado = dto.pagado,  
+                    metodo_pago = dto.metodo_pago, 
                     fecha = DateTime.UtcNow
                 };
 
@@ -253,11 +259,11 @@ namespace DulcesERP.API.Controllers
 
                 bool permitido = rolId switch
                 {
-                    0 => true,
-                    1 => true,
-                    3 => estado_id == 2 || estado_id == 3,
-                    4 => estado_id == 4 || estado_id == 5,
-                    5 => estado_id == 5,
+                    0 => true,                              // SuperAdmin — todo
+                    1 => true,                              // Admin — todo
+                    3 => estado_id == 2 || estado_id == 3 || estado_id == 4,// Produccion: CONFIRMADO, EN_PREPARACION
+                    4 => estado_id == 4 || estado_id == 5, // Cajero: LISTO, ENTREGADO
+                    5 => estado_id == 5,                   // Distribuidor: ENTREGADO
                     _ => false
                 };
 
@@ -414,5 +420,91 @@ namespace DulcesERP.API.Controllers
                 throw;
             }
         }
+
+        [HttpPut("{id}/entregar")]
+        public async Task<IActionResult> EntregarPedido(
+    int id, [FromBody] EntregarPedidoDTO dto)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var sucursalId = GetSucursalId();
+                var rolId = int.Parse(User.FindFirstValue("rol_id")!);
+
+                if (rolId != 0 && rolId != 1 && rolId != 5)
+                    return Forbid();
+
+                var pedido = await _context.Pedidos
+                    .Include(p => p.pedido_detalle)
+                    .FirstOrDefaultAsync(p =>
+                        p.pedido_id == id &&
+                        p.sucursal_id == sucursalId);
+
+                if (pedido == null)
+                    return NotFound("Pedido no encontrado");
+
+                if (pedido.estado_pedido_id != 4 && pedido.estado_pedido_id != 7)
+                    return BadRequest("El pedido no está en estado LISTO o DESPACHADO");
+
+                // Registrar cobro
+                pedido.pagado = true;
+                pedido.metodo_pago = dto.metodo_pago;
+                pedido.estado_pedido_id = 5; // ENTREGADO
+
+                // Descontar stock
+                foreach (var detalle in pedido.pedido_detalle)
+                {
+                    bool permiteSinStock = await PermiteSinStock(
+                        detalle.producto_id, sucursalId);
+
+                    if (permiteSinStock) continue;
+
+                    var inventario = await _context.Inventario
+                        .Include(i => i.almacenes)
+                        .FirstOrDefaultAsync(i =>
+                            i.producto_id == detalle.producto_id &&
+                            i.almacenes.sucursal_id == sucursalId);
+
+                    if (inventario == null) continue;
+
+                    int stockAntes = (int)inventario.stock_actual;
+                    int stockDespues = stockAntes - detalle.cantidad;
+
+                    inventario.stock_actual = stockDespues;
+                    inventario.stock_reservado = Math.Max(
+                        0, inventario.stock_reservado - detalle.cantidad);
+                    inventario.updated_at = DateTime.UtcNow;
+
+                    _context.InventarioMovimientos.Add(new InventarioMovimiento
+                    {
+                        producto_id = detalle.producto_id,
+                        almacen_id = inventario.almacen_id,
+                        tipo_movimiento = "SALIDA",
+                        cantidad = detalle.cantidad,
+                        referencia = pedido.pedido_id,
+                        stock_antes = stockAntes,
+                        stock_despues = stockDespues,
+                        motivo = $"Entrega pedido #{pedido.pedido_id}",
+                        fecha = DateTime.UtcNow
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Pedido entregado y cobrado",
+                    monto_cobrado = dto.monto_cobrado,
+                    metodo_pago = dto.metodo_pago,
+                    vuelto = dto.monto_cobrado - pedido.total
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }        
     }
 }

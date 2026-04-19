@@ -137,7 +137,7 @@ namespace DulcesERP.API.Controllers
             });
         }
     }
-
+        
     public class ConfigProductoSucursalDTO
     {
         public bool activo { get; set; }

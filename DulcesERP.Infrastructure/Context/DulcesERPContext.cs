@@ -37,6 +37,7 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<Pedidos> Pedidos { get; set; }
         public DbSet<PedidoDetalle> PedidoDetalles { get; set; }
         public DbSet<EstadosPedido> EstadosPedido { get; set; }
+        public DbSet<ConfiguracionPago> ConfiguracionPagos { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -52,6 +53,16 @@ namespace DulcesERP.Infrastructure.Context
             {
                 entity.ToTable("departamentos");
                 entity.HasKey(e => e.departamento_id);
+            });
+
+            modelBuilder.Entity<ConfiguracionPago>(entity =>
+            {
+                entity.ToTable("configuracion_pago");
+                entity.HasKey(e => e.config_id);
+                entity.Property(e => e.qr_base64).IsRequired(false);
+                entity.Property(e => e.numero).IsRequired(false);
+                entity.Property(e => e.titular).IsRequired(false);
+                entity.Property(e => e.banco).IsRequired(false);
             });
 
             modelBuilder.Entity<Provincia>(entity =>
@@ -85,7 +96,7 @@ namespace DulcesERP.Infrastructure.Context
             {
                 entity.ToTable("producto_sucursal");
                 entity.HasKey(e => new { e.producto_id, e.sucursal_id });
-
+                entity.Property(e => e.tenant_id).HasColumnName("tenant_id");
                 entity.HasOne(ps => ps.productos)
                     .WithMany()
                     .HasForeignKey(ps => ps.producto_id);
@@ -180,6 +191,14 @@ namespace DulcesERP.Infrastructure.Context
             {
                entity.ToTable("pedidos");
                 entity.HasKey(e => e.pedido_id);
+                // ← Agregar mapeo explícito de los nuevos campos
+                entity.Property(e => e.pagado)
+                      .HasColumnName("pagado")
+                      .HasDefaultValue(false);
+
+                entity.Property(e => e.metodo_pago)
+                      .HasColumnName("metodo_pago")
+                      .IsRequired(false);
             });
 
             modelBuilder.Entity<PedidoDetalle>(entity =>
