@@ -258,6 +258,32 @@ namespace DulcesERP.API.Controllers
             return Ok("Producto eliminado de la lista correctamente");
         }
 
+        // GET /api/productos/buscar?q=empanada
+        [HttpGet("buscar")]
+        public async Task<IActionResult> BuscarProducto([FromQuery] string q)
+        {
+            var sucursalId = GetSucursalId();
 
+            if (string.IsNullOrWhiteSpace(q))
+                return Ok(new List<object>());
+
+            var productos = await _context.Productos
+                .AsNoTracking()
+                .Where(p => p.activo == true &&
+                           (p.nombre.ToLower().Contains(q.ToLower()) ||
+                            (p.codigo_barras != null && p.codigo_barras == q)))
+                .Select(p => new
+                {
+                    p.producto_id,
+                    p.nombre,
+                    p.precio,
+                    codigo_barras = (string?)p.codigo_barras,
+                    p.permite_pedido_sin_stock
+                })
+                .Take(8)
+                .ToListAsync();
+
+            return Ok(productos);
+        }
     }
 }

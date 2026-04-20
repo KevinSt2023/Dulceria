@@ -38,6 +38,14 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<PedidoDetalle> PedidoDetalles { get; set; }
         public DbSet<EstadosPedido> EstadosPedido { get; set; }
         public DbSet<ConfiguracionPago> ConfiguracionPagos { get; set; }
+        public DbSet<Ventas> Ventas { get; set; }
+        public DbSet<Comprobantes> Comprobantes { get; set; }
+        public DbSet<ComprobanteDetalle> ComprobanteDetalles { get; set; }
+        public DbSet<Pagos> Pagos { get; set; }
+        public DbSet<SeriesComprobante> SeriesComprobante { get; set; }
+        public DbSet<TiposComprobante> TiposComprobante { get; set; }
+        public DbSet<Impuestos> Impuestos { get; set; }
+        public DbSet<MetodosPago> MetodosPago { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -211,6 +219,87 @@ namespace DulcesERP.Infrastructure.Context
             {
                 entity.ToTable("estados_pedido");
                 entity.HasKey(e => e.estado_pedido_id);
+            });
+
+            modelBuilder.Entity<Ventas>(entity =>
+            {
+                entity.ToTable("ventas");
+                entity.HasKey(e => e.venta_id);
+                entity.HasOne(v => v.clientes)
+                      .WithMany().HasForeignKey(v => v.cliente_id);
+                entity.HasOne(v => v.usuarios)
+                      .WithMany().HasForeignKey(v => v.usuario_id);
+                entity.HasOne(v => v.impuestos)
+                      .WithMany().HasForeignKey(v => v.impuesto_id);
+                entity.HasOne(v => v.pedidos)
+                      .WithMany().HasForeignKey(v => v.pedido_id);
+            });
+
+            modelBuilder.Entity<Comprobantes>(entity =>
+            {
+                entity.ToTable("comprobantes");
+                entity.HasKey(e => e.comprobante_id);
+                entity.HasOne(c => c.ventas)
+                      .WithMany(v => v.comprobantes)
+                      .HasForeignKey(c => c.venta_id);
+                entity.HasOne(c => c.series)
+                      .WithMany().HasForeignKey(c => c.serie_id);
+                entity.HasOne(c => c.tipos_comprobante)
+                      .WithMany().HasForeignKey(c => c.tipo_comprobante_id);
+                entity.HasOne(c => c.clientes)
+                      .WithMany().HasForeignKey(c => c.cliente_id);
+                entity.HasOne(c => c.impuestos)
+                      .WithMany().HasForeignKey(c => c.impuesto_id);
+            });
+
+            modelBuilder.Entity<ComprobanteDetalle>(entity =>
+            {
+                entity.ToTable("comprobante_detalle");
+                entity.HasKey(e => e.detalle_id);
+                entity.HasOne(d => d.comprobantes)
+                      .WithMany(c => c.detalles)
+                      .HasForeignKey(d => d.comprobante_id);
+                entity.HasOne(d => d.productos)
+                      .WithMany().HasForeignKey(d => d.producto_id);
+            });
+
+            modelBuilder.Entity<Pagos>(entity =>
+            {
+                entity.ToTable("pagos");
+                entity.HasKey(e => e.pago_id);
+                entity.HasOne(p => p.ventas)
+                      .WithMany(v => v.pagos)
+                      .HasForeignKey(p => p.venta_id);
+                entity.HasOne(p => p.metodos_pago)
+                      .WithMany().HasForeignKey(p => p.metodo_pago_id);
+            });
+
+            modelBuilder.Entity<SeriesComprobante>(entity =>
+            {
+                entity.ToTable("series_comprobante");
+                entity.HasKey(e => e.serie_id);
+                entity.HasOne(s => s.sucursales)
+                      .WithMany().HasForeignKey(s => s.sucursal_id);
+                entity.HasOne(s => s.tipos_comprobante)
+                      .WithMany().HasForeignKey(s => s.tipo_comprobante_id);
+            });
+
+            modelBuilder.Entity<TiposComprobante>(entity =>
+            {
+                entity.ToTable("tipos_comprobante");
+                entity.HasKey(e => e.tipo_comprobante_id);
+            });
+            
+            modelBuilder.Entity<Impuestos>(entity =>
+            {
+                entity.ToTable("impuestos");
+                entity.HasKey(e => e.impuesto_id);
+            });
+
+            modelBuilder.Entity<MetodosPago>(entity =>
+            {
+                entity.ToTable("metodos_pago");
+                entity.HasKey(e => e.metodo_pago_id);
             });
 
 

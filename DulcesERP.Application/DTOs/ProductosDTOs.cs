@@ -18,5 +18,6 @@ namespace DulcesERP.Application.DTOs
         public decimal costo { get; set; }
         public bool activo { get; set; } = true;
         public bool permite_pedido_sin_stock { get; set; } = true;
+        public string? codigo_barras { get; set; }
     }
 }
