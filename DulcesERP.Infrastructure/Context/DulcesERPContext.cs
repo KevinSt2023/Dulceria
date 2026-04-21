@@ -20,6 +20,7 @@ namespace DulcesERP.Infrastructure.Context
 
         public DbSet<ProductoSucursal> ProductoSucursales { get; set; }
         public DbSet<Tenants> Tenants { get; set; }
+        public DbSet<ConfiguracionNegocio> ConfiguracionNegocio { get; set; }
         public DbSet<Usuarios> Usuarios { get; set; }
         public DbSet<Roles> Roles { get; set; }        
         public DbSet<Categorias> Categorias { get; set; }
@@ -55,6 +56,11 @@ namespace DulcesERP.Infrastructure.Context
             {
                 entity.ToTable("tenants");
                 entity.HasKey(e => e.tenant_id);
+            });
+
+            modelBuilder.Entity<ConfiguracionNegocio>(entity => {
+                entity.ToTable("configuracion_negocio");
+                entity.HasKey(e => e.config_id);
             });
 
             modelBuilder.Entity<Departamentos>(entity =>

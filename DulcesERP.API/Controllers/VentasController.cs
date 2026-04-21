@@ -228,6 +228,20 @@ namespace DulcesERP.API.Controllers
 
                 decimal tasaIgv = impuesto.porcentaje / 100;
 
+                // ── Cliente genérico si no viene cliente_id ──
+                if (dto.cliente_id == 0 || dto.cliente_id == null)
+                {
+                    var clienteGenerico = await _context.Clientes
+                        .FirstOrDefaultAsync(c => c.documento == "00000000");
+
+                    if (clienteGenerico == null)
+                        return BadRequest(
+                            "No existe cliente genérico configurado en BD");
+
+                    dto.cliente_id = clienteGenerico.cliente_id;
+                }
+
+                
                 // ── Calcular totales ──
                 decimal totalVenta = 0;
                 var detallesComprobante = new List<ComprobanteDetalle>();
@@ -279,7 +293,7 @@ namespace DulcesERP.API.Controllers
                 var venta = new Ventas
                 {
                     pedido_id = dto.pedido_id,
-                    cliente_id = dto.cliente_id,
+                    cliente_id = (int)dto.cliente_id,
                     usuario_id = usuarioId,
                     impuesto_id = dto.impuesto_id,
                     total = totalVenta,
@@ -311,7 +325,7 @@ namespace DulcesERP.API.Controllers
                     serie_id = serie.serie_id,
                     numero = numeroCorrelativo,
                     tipo_comprobante_id = dto.tipo_comprobante_id,
-                    cliente_id = dto.cliente_id,
+                    cliente_id = (int)dto.cliente_id,
                     impuesto_id = dto.impuesto_id,
                     subtotal = subtotalTotal,
                     igv = igvTotal,
@@ -453,6 +467,102 @@ namespace DulcesERP.API.Controllers
             };
 
             return Ok(resumen);
+        }
+
+        // ─────────────────────────────────────────────
+        // GET /api/ventas/comprobantes
+        // Historial de comprobantes de la sucursal
+        // ─────────────────────────────────────────────
+        [HttpGet("comprobantes")]
+        public async Task<IActionResult> GetComprobantes(
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string? tipo_comprobante = null,
+            [FromQuery] string? buscar = null)
+        {
+            var sucursalId = GetSucursalId();
+            var rolId = GetRolId();
+
+            // Obtener usuarios de la sucursal
+            var usuariosSucursal = await _context.Usuarios
+                .Where(u => u.sucursal_id == sucursalId)
+                .Select(u => u.usuario_id)
+                .ToListAsync();
+
+            var query = _context.Comprobantes
+                .AsNoTracking()
+                .Include(c => c.series)
+                .Include(c => c.tipos_comprobante)
+                .Include(c => c.clientes)
+                .Include(c => c.ventas)
+                    .ThenInclude(v => v.usuarios)
+                .Include(c => c.ventas)
+                    .ThenInclude(v => v.pagos)
+                        .ThenInclude(p => p.metodos_pago)
+                .Include(c => c.detalles)
+                    .ThenInclude(d => d.productos)
+                .AsQueryable();
+
+            // Filtrar por sucursal (excepto SuperAdmin)
+            if (rolId != 0)
+                query = query.Where(c =>
+                    usuariosSucursal.Contains(c.ventas.usuario_id));
+
+            // Filtros opcionales
+            if (desde.HasValue)
+                query = query.Where(c => c.fecha >= desde.Value);
+
+            if (hasta.HasValue)
+                query = query.Where(c => c.fecha <= hasta.Value.AddDays(1));
+
+            if (!string.IsNullOrEmpty(tipo_comprobante))
+                query = query.Where(c =>
+                    c.tipos_comprobante.codigo_sunat == tipo_comprobante);
+
+            if (!string.IsNullOrEmpty(buscar))
+            {
+                var q = buscar.ToLower();
+                query = query.Where(c =>
+                    c.clientes.nombre.ToLower().Contains(q) ||
+                    c.clientes.documento.Contains(q));
+            }
+
+            var comprobantes = await query
+                .OrderByDescending(c => c.fecha)
+                .Select(c => new
+                {
+                    c.comprobante_id,
+                    numero_formato = c.series.serie + "-"
+                        + c.numero.ToString().PadLeft(8, '0'),
+                    serie = c.series.serie,
+                    c.numero,
+                    tipo = c.tipos_comprobante.nombre,
+                    codigo_sunat = c.tipos_comprobante.codigo_sunat,
+                    cliente = c.clientes.nombre,
+                    cliente_doc = c.clientes.documento,
+                    c.subtotal,
+                    c.igv,
+                    c.total,
+                    c.estado_sunat,
+                    c.fecha,
+                    cajero = c.ventas.usuarios.nombre,
+                    metodo_pago = c.ventas.pagos
+                        .Select(p => p.metodos_pago.nombre)
+                        .FirstOrDefault(),
+                    detalles = c.detalles.Select(d => new
+                    {
+                        d.producto_id,
+                        producto = d.productos.nombre,
+                        d.cantidad,
+                        d.precio_unitario,
+                        d.subtotal,
+                        d.igv,
+                        d.total
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(comprobantes);
         }
     }
 }

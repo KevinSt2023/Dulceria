@@ -24,44 +24,26 @@ namespace DulcesERP.API.Controllers
         private int GetRolId() => int.Parse(User.FindFirstValue("rol_id")!);
         private int GetSucursalId() => int.Parse(User.FindFirstValue("sucursal_id")!);
 
-        // ─────────────────────────────────────────────
-        // GET /api/productosucursal
-        // Admin ve la configuración de su sucursal
-        // SuperAdmin puede ver cualquier sucursal con ?sucursal_id=X
-        // ─────────────────────────────────────────────
+
         [HttpGet]
         public async Task<IActionResult> GetConfig()
         {
-            var rolId = GetRolId();
             var sucursalId = GetSucursalId();
 
-            // SuperAdmin puede consultar otra sucursal
-            if (rolId == 0 && Request.Query.TryGetValue("sucursal_id", out var qSucursal))
-                sucursalId = int.Parse(qSucursal!);
-
-            // Solo Admin y SuperAdmin
-            if (rolId != 0 && rolId != 1)
-                return Forbid();
-
-            // Todos los productos activos del catálogo global
             var productos = await _context.Productos
                 .AsNoTracking()
                 .Where(p => p.activo == true)
-                .OrderBy(p => p.nombre)
-                .Select(p => new { p.producto_id, p.nombre, p.precio })
                 .ToListAsync();
 
-            // Configuración actual de esta sucursal
-            var config = await _context.ProductoSucursales
+            var configSede = await _context.ProductoSucursales
                 .AsNoTracking()
                 .Where(ps => ps.sucursal_id == sucursalId)
                 .ToListAsync();
 
-            var configDict = config.ToDictionary(ps => ps.producto_id);
-
-            // Stock de esta sucursal
-            var stock = await _context.Inventario
+            // ← Traer inventario por separado (no dentro del Select)
+            var inventarioSede = await _context.Inventario
                 .AsNoTracking()
+                .Include(i => i.almacenes)
                 .Where(i => i.almacenes.sucursal_id == sucursalId)
                 .GroupBy(i => i.producto_id)
                 .Select(g => new
@@ -71,22 +53,27 @@ namespace DulcesERP.API.Controllers
                 })
                 .ToListAsync();
 
-            var stockDict = stock.ToDictionary(s => s.producto_id, s => s.stock_actual);
-
             var resultado = productos.Select(p =>
             {
-                var cfg = configDict.TryGetValue(p.producto_id, out var c) ? c : null;
+                var config = configSede
+                    .FirstOrDefault(ps => ps.producto_id == p.producto_id);
+
+                var inv = inventarioSede
+                    .FirstOrDefault(i => i.producto_id == p.producto_id);
+
                 return new
                 {
                     p.producto_id,
                     p.nombre,
                     p.precio,
-                    activo_en_sucursal = cfg?.activo ?? false,
-                    permite_pedido_sin_stock = cfg?.permite_pedido_sin_stock ?? true,
-                    stock_actual = stockDict.TryGetValue(p.producto_id, out var s) ? s : 0,
-                    configurado = cfg != null
+                    stock_actual = inv?.stock_actual ?? 0,
+                    activo_en_sucursal = config?.activo ?? false,
+                    // ← Fallback correcto al valor global
+                    permite_pedido_sin_stock = config != null
+                        ? config.permite_pedido_sin_stock
+                        : p.permite_pedido_sin_stock
                 };
-            });
+            }).ToList();
 
             return Ok(resultado);
         }

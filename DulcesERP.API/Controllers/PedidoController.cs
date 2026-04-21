@@ -131,7 +131,6 @@ namespace DulcesERP.API.Controllers
         public async Task<IActionResult> CrearPedido([FromBody] CrearPedidoDTOs dto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
-
             try
             {
                 if (dto.detalles == null || dto.detalles.Count == 0)
@@ -144,26 +143,23 @@ namespace DulcesERP.API.Controllers
                     return BadRequest("Estado inicial no configurado en BD");
 
                 var usuarioId = GetUsuarioId();
-                var sucursalId = GetSucursalId();
+                var sucursalId = GetSucursalId(); // sucursal del vendedor
+
+                // ── Determinar sucursal de stock ──
+                // PICKUP en otra sede → validar stock de esa sede
+                // DELIVERY o PICKUP sin sede → validar stock de la sede del vendedor
+                int sucursalStockId = sucursalId;
+
+                if (dto.tipos_pedido == "PICKUP" && dto.sucursal_recojo_id.HasValue
+                    && dto.sucursal_recojo_id.Value != 0)
+                {
+                    sucursalStockId = dto.sucursal_recojo_id.Value;
+                }
 
                 decimal total = 0;
 
-                var pedido = new Pedidos
-                {
-                    cliente_id = dto.cliente_id,
-                    usuario_id = usuarioId,
-                    sucursal_id = sucursalId,
-                    estado_pedido_id = estadoPendiente.estado_pedido_id,
-                    observaciones = dto.observaciones,
-                    direccion_entrega = dto.direccion_entrega,
-                    tipos_pedido = dto.tipos_pedido,
-                    pagado = dto.pagado,  
-                    metodo_pago = dto.metodo_pago, 
-                    fecha = DateTime.UtcNow
-                };
-
-                _context.Pedidos.Add(pedido);
-                await _context.SaveChangesAsync();
+                // ── Validar stock ANTES de crear el pedido ──
+                var erroresStock = new List<string>();
 
                 foreach (var item in dto.detalles)
                 {
@@ -173,7 +169,76 @@ namespace DulcesERP.API.Controllers
                     if (producto == null)
                         return BadRequest($"Producto {item.producto_id} no existe");
 
-                    decimal precio = producto.precio ?? 0m;
+                    bool permiteSinStock = await PermiteSinStock(
+                        producto.producto_id, sucursalStockId);
+
+                    if (!permiteSinStock)
+                    {
+                        var inventario = await _context.Inventario
+                            .Include(i => i.almacenes)
+                            .FirstOrDefaultAsync(i =>
+                                i.producto_id == producto.producto_id &&
+                                i.almacenes.sucursal_id == sucursalStockId);
+
+                        int disponible = inventario != null
+                            ? (int)inventario.stock_actual - inventario.stock_reservado
+                            : 0;
+
+                        if (inventario == null)
+                        {
+                            erroresStock.Add(
+                                $"❌ '{producto.nombre}' no tiene inventario " +
+                                $"en la sede seleccionada");
+                        }
+                        else if (disponible < (int)item.cantidad)
+                        {
+                            erroresStock.Add(
+                                $"❌ '{producto.nombre}': " +
+                                $"disponible {disponible}, solicitado {(int)item.cantidad}");
+                        }
+                    }
+                }
+
+                // Si hay errores de stock, retornar TODOS juntos
+                if (erroresStock.Any())
+                {
+                    var sucursal = await _context.Sucursales
+                        .FirstOrDefaultAsync(s => s.sucursal_id == sucursalStockId);
+
+                    return BadRequest(new
+                    {
+                        mensaje = $"Stock insuficiente en {sucursal?.nombre ?? "la sede seleccionada"}",
+                        errores = erroresStock,
+                        sucursal = sucursal?.nombre,
+                        sugerencia = "Cambia la sede de recojo o ajusta las cantidades"
+                    });
+                }
+
+                // ── Crear pedido ──
+                var pedido = new Pedidos
+                {
+                    cliente_id = dto.cliente_id,
+                    usuario_id = usuarioId,
+                    sucursal_id = sucursalStockId, // ← sede donde se prepara
+                    estado_pedido_id = estadoPendiente.estado_pedido_id,
+                    observaciones = dto.observaciones,
+                    direccion_entrega = dto.direccion_entrega,
+                    tipos_pedido = dto.tipos_pedido,
+                    pagado = dto.pagado,
+                    metodo_pago = dto.metodo_pago,
+                    fecha = DateTime.UtcNow
+                };
+
+                _context.Pedidos.Add(pedido);
+                await _context.SaveChangesAsync();
+
+                // ── Crear detalles y reservar stock ──
+                foreach (var item in dto.detalles)
+                {
+                    var producto = await _context.Productos
+                        .FirstOrDefaultAsync(p => p.producto_id == (int)item.producto_id);
+
+                    decimal precio = producto!.precio ?? 0m;
                     int cantidad = (int)item.cantidad;
                     decimal subtotal = precio * cantidad;
                     total += subtotal;
@@ -187,9 +252,8 @@ namespace DulcesERP.API.Controllers
                         subtotal = subtotal
                     });
 
-                    // ── Leer permite_pedido_sin_stock por sede ──
                     bool permiteSinStock = await PermiteSinStock(
-                        producto.producto_id, sucursalId);
+                        producto.producto_id, sucursalStockId);
 
                     if (!permiteSinStock)
                     {
@@ -197,28 +261,17 @@ namespace DulcesERP.API.Controllers
                             .Include(i => i.almacenes)
                             .FirstOrDefaultAsync(i =>
                                 i.producto_id == producto.producto_id &&
-                                i.almacenes.sucursal_id == sucursalId);
+                                i.almacenes.sucursal_id == sucursalStockId);
 
-                        if (inventario == null)
-                            return BadRequest(
-                                $"Producto '{producto.nombre}' no tiene inventario " +
-                                $"en esta sucursal");
-
-                        int disponible = (int)inventario.stock_actual
-                                         - inventario.stock_reservado;
-
-                        if (disponible < cantidad)
-                            return BadRequest(
-                                $"Stock insuficiente para '{producto.nombre}'. " +
-                                $"Disponible: {disponible}, solicitado: {cantidad}");
-
-                        inventario.stock_reservado += cantidad;
-                        inventario.updated_at = DateTime.UtcNow;
+                        if (inventario != null)
+                        {
+                            inventario.stock_reservado += cantidad;
+                            inventario.updated_at = DateTime.UtcNow;
+                        }
                     }
                 }
 
                 pedido.total = total;
-
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
@@ -226,7 +279,9 @@ namespace DulcesERP.API.Controllers
                 {
                     mensaje = "Pedido creado correctamente",
                     pedido_id = pedido.pedido_id,
-                    total
+                    total,
+                    sucursal_preparacion = (await _context.Sucursales
+                        .FirstOrDefaultAsync(s => s.sucursal_id == sucursalStockId))?.nombre
                 });
             }
             catch
@@ -263,7 +318,7 @@ namespace DulcesERP.API.Controllers
                     1 => true,                              // Admin — todo
                     3 => estado_id == 2 || estado_id == 3 || estado_id == 4,// Produccion: CONFIRMADO, EN_PREPARACION
                     4 => estado_id == 4 || estado_id == 5, // Cajero: LISTO, ENTREGADO
-                    5 => estado_id == 5,                   // Distribuidor: ENTREGADO
+                    5 => estado_id == 5 || estado_id == 7, // ← Distribuidor: ENTREGADO y DESPACHADO
                     _ => false
                 };
 
@@ -290,7 +345,6 @@ namespace DulcesERP.API.Controllers
                 {
                     foreach (var detalle in pedido.pedido_detalle)
                     {
-                        // ← Leer por sede
                         bool permiteSinStock = await PermiteSinStock(
                             detalle.producto_id, sucursalId);
 
@@ -302,18 +356,11 @@ namespace DulcesERP.API.Controllers
                                 i.producto_id == detalle.producto_id &&
                                 i.almacenes.sucursal_id == sucursalId);
 
-                        if (inventario == null)
-                            return BadRequest(
-                                $"Sin inventario para producto {detalle.producto_id}");
-
-                        if (inventario.stock_actual < detalle.cantidad)
-                            return BadRequest(
-                                $"Stock insuficiente para producto {detalle.producto_id}. " +
-                                $"Disponible: {inventario.stock_actual}, " +
-                                $"requerido: {detalle.cantidad}");
+                        if (inventario == null) continue; // ← antes retornaba error, ahora continúa
 
                         int stockAntes = (int)inventario.stock_actual;
-                        int stockDespues = stockAntes - detalle.cantidad;
+                        // ← Usar Math.Max para nunca quedar negativo
+                        int stockDespues = Math.Max(0, stockAntes - detalle.cantidad);
 
                         inventario.stock_actual = stockDespues;
                         inventario.stock_reservado = Math.Max(
@@ -422,8 +469,7 @@ namespace DulcesERP.API.Controllers
         }
 
         [HttpPut("{id}/entregar")]
-        public async Task<IActionResult> EntregarPedido(
-    int id, [FromBody] EntregarPedidoDTO dto)
+        public async Task<IActionResult> EntregarPedido(int id, [FromBody] EntregarPedidoDTO dto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -468,7 +514,7 @@ namespace DulcesERP.API.Controllers
                     if (inventario == null) continue;
 
                     int stockAntes = (int)inventario.stock_actual;
-                    int stockDespues = stockAntes - detalle.cantidad;
+                    int stockDespues = Math.Max(0, stockAntes - detalle.cantidad);
 
                     inventario.stock_actual = stockDespues;
                     inventario.stock_reservado = Math.Max(

@@ -9,13 +9,13 @@ namespace DulcesERP.Domain.Entities
     public class Clientes : TenantEntity
     {
         public int cliente_id { get; set; }
-        public string nombre { get; set; } = string.Empty;
-        public string documento { get; set; } = string.Empty;
-        public string telefono {  get; set; } = string.Empty;
-        public string direccion {  get; set; } = string.Empty;
-        public string email {  get; set; } = string.Empty;
+        public string nombre { get; set; } = "";
+        public string? documento { get; set; } = string.Empty;
+        public string? telefono {  get; set; } = string.Empty;
+        public string? direccion {  get; set; } = string.Empty;
+        public string? email {  get; set; } = string.Empty;
         public DateTime created_at { get; set; }
-        public bool activo { get; set; }
+        public bool activo { get; set; } = true;
         public int? departamento_id { get; set; }
         public int? provincia_id { get; set; }
         public int? distrito_id { get; set; }

@@ -15,7 +15,8 @@ namespace DulcesERP.Application.DTOs
         public string? direccion_entrega {  get; set; }
         public string? tipos_pedido { get; set; }
         public bool pagado { get; set; } = false; 
-        public string? metodo_pago { get; set; }       
+        public string? metodo_pago { get; set; }
+        public int? sucursal_recojo_id { get; set; }
         public List<PedidoDetalleDTOs>? detalles { get; set; }
     }
 }

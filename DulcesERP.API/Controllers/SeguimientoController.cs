@@ -118,5 +118,53 @@ namespace DulcesERP.API.Controllers
 
             return Ok(resultado);
         }
+
+
+        // GET /api/distribucion
+        // Solo pedidos DELIVERY en estado LISTO (4) o DESPACHADO (7)
+        [HttpGet("/api/distribucion")]
+        public async Task<IActionResult> GetPedidosDistribucion()
+        {
+            var sucursalId = GetSucursalId();
+            var rolId = GetRolId();
+
+            var pedidos = await _context.Pedidos
+                .AsNoTracking()
+                .Where(p => p.sucursal_id == sucursalId
+                         && p.tipos_pedido == "DELIVERY"
+                         && (p.estado_pedido_id == 4   // LISTO
+                          || p.estado_pedido_id == 7)) // DESPACHADO
+                .Include(p => p.clientes)
+                .Include(p => p.pedido_detalle)
+                    .ThenInclude(d => d.productos)
+                .OrderBy(p => p.fecha)
+                .Select(p => new
+                {
+                    p.pedido_id,
+                    p.total,
+                    p.fecha,
+                    p.observaciones,
+                    p.tipos_pedido,
+                    p.direccion_entrega,
+                    p.metodo_pago,
+                    p.pagado,
+                    p.estado_pedido_id,
+                    estado = p.estado_pedido_id == 4 ? "LISTO" : "DESPACHADO",
+                    cliente = p.clientes.nombre,
+                    cliente_doc = p.clientes.documento,
+                    cliente_id = p.cliente_id,
+                    detalles = p.pedido_detalle.Select(d => new
+                    {
+                        d.producto_id,
+                        producto = d.productos.nombre,
+                        d.cantidad,
+                        d.precio,
+                        d.subtotal
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(pedidos);
+        }
     }
 }

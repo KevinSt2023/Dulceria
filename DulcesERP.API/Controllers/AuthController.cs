@@ -62,5 +62,14 @@ namespace DulcesERP.API.Controllers
                 rol_id = user.rol_id
             });
         }
+
+        
+       [AllowAnonymous]
+        [HttpGet("generar-hash")]
+        public IActionResult GenerarHash([FromQuery] string password)
+        {
+            var hash = BCrypt.Net.BCrypt.HashPassword(password);
+            return Ok(new { hash });
+        }
     }
 }
