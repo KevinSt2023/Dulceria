@@ -16,5 +16,14 @@ namespace DulcesERP.Domain.Entities
         public string email { get; set; } = string.Empty;
         public bool activo { get; set; }
         public DateTime create_ad { get; set; }
+
+        // Plan
+        public int plan_id { get; set; }
+        public DateOnly? plan_fecha_inicio { get; set; }
+        public DateOnly? plan_fecha_vencimiento { get; set; }
+        public bool plan_activo { get; set; }
+
+        // Navegación
+        public Plan? plan { get; set; }
     }
 }

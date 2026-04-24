@@ -22,8 +22,15 @@ namespace DulcesERP.API.Controllers
 
         [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            // Mensaje genérico siempre — nunca revelar si el email existe o no
+            const string mensajeError = "Credenciales incorrectas";
+
+            if (string.IsNullOrWhiteSpace(request.email) ||
+                string.IsNullOrWhiteSpace(request.password))
+                return Unauthorized(mensajeError);
+
             var user = await _context.Usuarios
                 .IgnoreQueryFilters()
                 .Include(u => u.roles)
@@ -31,13 +38,24 @@ namespace DulcesERP.API.Controllers
                 .FirstOrDefaultAsync(u =>
                     u.email.Trim().ToLower() == request.email.Trim().ToLower());
 
+            // Verificar siempre BCrypt aunque no exista el usuario
+            // para evitar timing attacks
+            var hashDummy = "$2a$11$dummyhashparaevitartimingattacksxxxxxxxxxxxxxxxxxxx";
+            var passwordValido = user != null &&
+                BCrypt.Net.BCrypt.Verify(request.password, user.password_hash);
+
             if (user == null)
-                return Unauthorized("Usuario no existe");
+            {
+                BCrypt.Net.BCrypt.Verify(request.password, hashDummy);
+                return Unauthorized(mensajeError);
+            }
 
-            if (!BCrypt.Net.BCrypt.Verify(request.password, user.password_hash))
-                return Unauthorized("Password incorrecto");
+            if (!passwordValido)
+                return Unauthorized(mensajeError);
 
-            // Nombre de sucursal — SuperAdmin (rol 0) ve todas
+            if (!user.activo)
+                return Unauthorized(mensajeError);
+
             var sucursalNombre = user.rol_id == 0
                 ? "Todas las sucursales"
                 : user.sucursales?.nombre ?? $"Sucursal #{user.sucursal_id}";
@@ -61,15 +79,6 @@ namespace DulcesERP.API.Controllers
                 rol_nombre = rolNombre,
                 rol_id = user.rol_id
             });
-        }
-
-        
-       [AllowAnonymous]
-        [HttpGet("generar-hash")]
-        public IActionResult GenerarHash([FromQuery] string password)
-        {
-            var hash = BCrypt.Net.BCrypt.HashPassword(password);
-            return Ok(new { hash });
         }
     }
 }

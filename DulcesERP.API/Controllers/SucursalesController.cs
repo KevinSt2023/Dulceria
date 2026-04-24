@@ -66,6 +66,25 @@ namespace DulcesERP.API.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateSucursales(SucursalesDTOs dto)
         {
+            // Verificar límite de sucursales según plan
+            var tenantId = int.Parse(User.FindFirstValue("tenant_id")!);
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .Include(t => t.plan)
+                .FirstOrDefaultAsync(t => t.tenant_id == tenantId);
+
+            if (tenant?.plan != null && tenant.plan.max_sucursales > 0)
+            {
+                var totalSucursales = await _context.Sucursales
+                    .CountAsync(s => s.activo);
+
+                if (totalSucursales >= tenant.plan.max_sucursales)
+                    return BadRequest(new
+                    {
+                        mensaje = $"Tu plan {tenant.plan.nombre} permite máximo {tenant.plan.max_sucursales} sucursales activas. Desactiva una para continuar."
+                    });
+            }
+
             var sucursal = new Sucursales
             {
                 nombre = dto.nombre,

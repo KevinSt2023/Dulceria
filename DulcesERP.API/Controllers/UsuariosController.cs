@@ -91,6 +91,25 @@ namespace DulcesERP.API.Controllers
             if (emailExiste)
                 return BadRequest("El email ya está registrado");
 
+            // Verificar límite de usuarios según plan
+            var tenantId = int.Parse(User.FindFirstValue("tenant_id")!);
+            var tenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .Include(t => t.plan)
+                .FirstOrDefaultAsync(t => t.tenant_id == tenantId);
+
+            if (tenant?.plan != null && tenant.plan.max_usuarios > 0)
+            {
+                var totalUsuarios = await _context.Usuarios
+                    .CountAsync(u => u.activo);
+
+                if (totalUsuarios >= tenant.plan.max_usuarios)
+                    return BadRequest(new
+                    {
+                        mensaje = $"Tu plan {tenant.plan.nombre} permite máximo {tenant.plan.max_usuarios} usuarios activos. Desactiva uno para continuar."
+                    });
+            }
+
             var user = new Usuarios
             {
                 nombre = dto.nombre,

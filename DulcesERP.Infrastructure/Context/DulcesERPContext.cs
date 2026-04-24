@@ -47,15 +47,27 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<TiposComprobante> TiposComprobante { get; set; }
         public DbSet<Impuestos> Impuestos { get; set; }
         public DbSet<MetodosPago> MetodosPago { get; set; }
-
+        public DbSet<Plan> Planes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            
+
             modelBuilder.Entity<Tenants>(entity =>
             {
                 entity.ToTable("tenants");
                 entity.HasKey(e => e.tenant_id);
+                entity.Property(e => e.plan_fecha_inicio).IsRequired(false);
+                entity.Property(e => e.plan_fecha_vencimiento).IsRequired(false);
+                entity.HasOne(t => t.plan)
+                      .WithMany(p => p.Tenants)
+                      .HasForeignKey(t => t.plan_id)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Plan>(entity =>
+            {
+                entity.ToTable("planes");
+                entity.HasKey(e => e.plan_id);
             });
 
             modelBuilder.Entity<ConfiguracionNegocio>(entity => {
@@ -458,8 +470,7 @@ namespace DulcesERP.Infrastructure.Context
         {
             var tenantId = _tenantProvider.GetTenantId();
 
-            if (tenantId == 0)
-                throw new Exception("Tenant no definido");
+            if (tenantId == 0) return;
 
             var entries = ChangeTracker
                 .Entries<TenantEntity>()

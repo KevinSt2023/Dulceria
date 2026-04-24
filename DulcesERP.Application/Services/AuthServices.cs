@@ -1,4 +1,5 @@
-﻿using DulcesERP.Infrastructure.Context;
+﻿using BCrypt.Net;
+using DulcesERP.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace DulcesERP.Application.Services
@@ -12,11 +13,17 @@ namespace DulcesERP.Application.Services
             _context = context;
         }
 
-        public async Task<bool> ValidateUser(string email, string password, int rol_id)
+        // Validación correcta con BCrypt — nunca comparar password en texto plano
+        public async Task<bool> ValidateUser(string email, string password)
         {
             var user = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.email == email && u.password_hash == password && u.rol_id == rol_id);
-            return user != null;
+                .FirstOrDefaultAsync(u =>
+                    u.email.Trim().ToLower() == email.Trim().ToLower() &&
+                    u.activo);
+
+            if (user == null) return false;
+
+            return BCrypt.Net.BCrypt.Verify(password, user.password_hash);
         }
     }
 }
