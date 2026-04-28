@@ -24,6 +24,7 @@ namespace DulcesERP.Infrastructure.Context
         public DbSet<Usuarios> Usuarios { get; set; }
         public DbSet<Roles> Roles { get; set; }        
         public DbSet<Categorias> Categorias { get; set; }
+        public DbSet<Abono> Abonos { get; set; }
         public DbSet<Tipos_Productos> Tipos_Productos { get; set; }
         public DbSet<Productos> Productos { get; set; }
         public DbSet<Unidades_Medida> Unidades_Medida { get; set; }
@@ -136,7 +137,16 @@ namespace DulcesERP.Infrastructure.Context
             {
                 entity.ToTable("usuarios");
                 entity.HasKey(e => e.usuario_id);                
-            });           
+            });
+
+            modelBuilder.Entity<Abono>(entity =>
+            {
+                entity.ToTable("abonos");
+                entity.HasKey(e => e.abono_id);
+                entity.HasOne(a => a.pedidos)
+                      .WithMany()
+                      .HasForeignKey(a => a.pedido_id);
+            });
 
             modelBuilder.Entity<Roles>(entity =>
             {

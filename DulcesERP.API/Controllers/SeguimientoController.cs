@@ -166,5 +166,53 @@ namespace DulcesERP.API.Controllers
 
             return Ok(pedidos);
         }
+
+        // GET /api/distribucion/historial
+        // Pedidos DELIVERY ENTREGADOS del día
+        [HttpGet("/api/distribucion/historial")]
+        public async Task<IActionResult> GetHistorialDistribucion(
+            [FromQuery] DateTime? fecha = null)
+        {
+            var sucursalId = GetSucursalId();
+            var dia = (fecha ?? DateTime.UtcNow).Date;
+
+            var pedidos = await _context.Pedidos
+                .AsNoTracking()
+                .Where(p => p.sucursal_id == sucursalId
+                         && p.tipos_pedido == "DELIVERY"
+                         && p.estado_pedido_id == 5  // ENTREGADO
+                         && p.fecha >= dia
+                         && p.fecha < dia.AddDays(1))
+                .Include(p => p.clientes)
+                .Include(p => p.pedido_detalle)
+                    .ThenInclude(d => d.productos)
+                .OrderByDescending(p => p.fecha)
+                .Select(p => new
+                {
+                    p.pedido_id,
+                    p.total,
+                    p.monto_pagado,
+                    p.saldo_pendiente,
+                    p.tipo_pago,
+                    p.fecha,
+                    p.observaciones,
+                    p.direccion_entrega,
+                    p.metodo_pago,
+                    p.pagado,
+                    cliente = p.clientes.nombre,
+                    cliente_doc = p.clientes.documento,
+                    detalles = p.pedido_detalle.Select(d => new
+                    {
+                        d.producto_id,
+                        producto = d.productos.nombre,
+                        d.cantidad,
+                        d.precio,
+                        d.subtotal
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(pedidos);
+        }
     }
 }

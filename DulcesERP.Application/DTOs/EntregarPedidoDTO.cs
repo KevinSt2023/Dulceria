@@ -10,5 +10,6 @@ namespace DulcesERP.Application.DTOs
     {
         public decimal monto_cobrado { get; set; }
         public string metodo_pago { get; set; } = "";
+        public string tipo_pago { get; set; } = "CONTADO"; // CONTADO | CREDITO
     }
 }

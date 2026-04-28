@@ -492,10 +492,34 @@ namespace DulcesERP.API.Controllers
                 if (pedido.estado_pedido_id != 4 && pedido.estado_pedido_id != 7)
                     return BadRequest("El pedido no está en estado LISTO o DESPACHADO");
 
-                // Registrar cobro
-                pedido.pagado = true;
+                // Registrar cobro — CONTADO o CRÉDITO
                 pedido.metodo_pago = dto.metodo_pago;
+                pedido.monto_pagado = dto.monto_cobrado;
+                pedido.tipo_pago = dto.tipo_pago;
+
+                if (dto.tipo_pago == "CREDITO")
+                {
+                    pedido.saldo_pendiente = pedido.total - dto.monto_cobrado;
+                    pedido.pagado = pedido.saldo_pendiente <= 0;
+                }
+                else
+                {
+                    pedido.saldo_pendiente = 0;
+                    pedido.pagado = true;
+                }
+
                 pedido.estado_pedido_id = 5; // ENTREGADO
+
+                // Registrar abono inicial
+                _context.Abonos.Add(new Abono
+                {
+                    pedido_id = pedido.pedido_id,
+                    monto = dto.monto_cobrado,
+                    metodo_pago = dto.metodo_pago,
+                    observacion = dto.tipo_pago == "CREDITO" ? "Pago inicial" : "Pago completo",
+                    usuario_id = int.Parse(User.FindFirstValue("usuario_id")!),
+                    fecha = DateTime.UtcNow
+                });
 
                 // Descontar stock
                 foreach (var detalle in pedido.pedido_detalle)
@@ -535,15 +559,121 @@ namespace DulcesERP.API.Controllers
                     });
                 }
 
+                // ── Generar venta y comprobante automático (Boleta por defecto) ──
+                var clienteGenerico = await _context.Clientes
+                    .FirstOrDefaultAsync(c => c.documento == "00000000");
+
+                var clienteId = pedido.cliente_id > 0
+                    ? pedido.cliente_id
+                    : clienteGenerico?.cliente_id ?? 0;
+
+                var impuesto = await _context.Impuestos
+                    .FirstOrDefaultAsync(i => i.impuesto_id == 1);
+
+                if (impuesto != null && clienteId > 0)
+                {
+                    decimal tasaIgv = impuesto.porcentaje / 100;
+
+                    // Calcular totales
+                    decimal totalVenta = pedido.total;
+                    decimal subtotalTotal = Math.Round(totalVenta / (1 + tasaIgv), 2);
+                    decimal igvTotal = Math.Round(totalVenta - subtotalTotal, 2);
+
+                    // Crear venta
+                    var venta = new Ventas
+                    {
+                        pedido_id = pedido.pedido_id,
+                        cliente_id = clienteId,
+                        usuario_id = int.Parse(User.FindFirstValue("usuario_id")!),
+                        impuesto_id = 1,
+                        total = totalVenta,
+                        fecha = DateTime.UtcNow
+                    };
+                    _context.Ventas.Add(venta);
+                    await _context.SaveChangesAsync();
+
+                    // Obtener serie boleta de la sucursal
+                    var tipoBoletaId = await _context.TiposComprobante
+                        .Where(t => t.codigo_sunat == "03")
+                        .Select(t => t.tipo_comprobante_id)
+                        .FirstOrDefaultAsync();
+
+                    var serie = await _context.SeriesComprobante
+                        .FirstOrDefaultAsync(s =>
+                            s.sucursal_id == sucursalId &&
+                            s.tipo_comprobante_id == tipoBoletaId &&
+                            s.activo == true);
+
+                    if (serie != null)
+                    {
+                        serie.correlativo_actual += 1;
+
+                        var comprobante = new Comprobantes
+                        {
+                            venta_id = venta.venta_id,
+                            serie_id = serie.serie_id,
+                            numero = serie.correlativo_actual,
+                            tipo_comprobante_id = tipoBoletaId,
+                            cliente_id = clienteId,
+                            impuesto_id = 1,
+                            subtotal = subtotalTotal,
+                            igv = igvTotal,
+                            total = totalVenta,
+                            estado_sunat = "SIN_ENVIAR",
+                            fecha = DateTime.UtcNow
+                        };
+                        _context.Comprobantes.Add(comprobante);
+                        await _context.SaveChangesAsync();
+
+                        // Detalles del comprobante
+                        foreach (var detalle in pedido.pedido_detalle)
+                        {
+                            decimal totalItem = detalle.precio * detalle.cantidad;
+                            decimal subtotalItem = Math.Round(totalItem / (1 + tasaIgv), 2);
+                            decimal igvItem = Math.Round(totalItem - subtotalItem, 2);
+
+                            _context.ComprobanteDetalles.Add(new ComprobanteDetalle
+                            {
+                                comprobante_id = comprobante.comprobante_id,
+                                producto_id = detalle.producto_id,
+                                cantidad = detalle.cantidad,
+                                precio_unitario = detalle.precio,
+                                subtotal = subtotalItem,
+                                igv = igvItem,
+                                total = totalItem
+                            });
+                        }
+
+                        // Registrar pago
+                        var metodo = await _context.MetodosPago
+                            .FirstOrDefaultAsync(m => m.nombre.ToLower()
+                                .Contains(dto.metodo_pago.ToLower()) ||
+                                m.codigo.ToLower() == dto.metodo_pago.ToLower());
+
+                        if (metodo != null)
+                        {
+                            _context.Pagos.Add(new Pagos
+                            {
+                                venta_id = venta.venta_id,
+                                metodo_pago_id = metodo.metodo_pago_id,
+                                monto = dto.monto_cobrado,
+                                fecha = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 return Ok(new
                 {
-                    mensaje = "Pedido entregado y cobrado",
+                    mensaje = dto.tipo_pago == "CREDITO" ? "Pedido entregado con crédito" : "Pedido entregado y cobrado",
                     monto_cobrado = dto.monto_cobrado,
                     metodo_pago = dto.metodo_pago,
-                    vuelto = dto.monto_cobrado - pedido.total
+                    tipo_pago = dto.tipo_pago,
+                    saldo_pendiente = pedido.saldo_pendiente,
+                    vuelto = dto.tipo_pago == "CONTADO" ? dto.monto_cobrado - pedido.total : 0
                 });
             }
             catch
@@ -551,6 +681,139 @@ namespace DulcesERP.API.Controllers
                 await transaction.RollbackAsync();
                 throw;
             }
-        }        
+        }
+
+        // ── POST /api/pedidos/{id}/abonar ────────────────────────
+        [HttpPost("{id}/abonar")]
+        public async Task<IActionResult> AbonarPedido(int id, [FromBody] AbonoDTO dto)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var sucursalId = GetSucursalId();
+                var pedido = await _context.Pedidos
+                    .FirstOrDefaultAsync(p => p.pedido_id == id && p.sucursal_id == sucursalId);
+
+                if (pedido == null)
+                    return NotFound("Pedido no encontrado");
+
+                if (pedido.estado_pedido_id != 5)
+                    return BadRequest("Solo se pueden abonar pedidos entregados");
+
+                if (pedido.saldo_pendiente <= 0)
+                    return BadRequest("Este pedido no tiene saldo pendiente");
+
+                if (dto.monto <= 0 || dto.monto > pedido.saldo_pendiente)
+                    return BadRequest($"Monto inválido. Saldo pendiente: S/ {pedido.saldo_pendiente}");
+
+                pedido.monto_pagado += dto.monto;
+                pedido.saldo_pendiente = Math.Max(0, pedido.saldo_pendiente - dto.monto);
+                pedido.pagado = pedido.saldo_pendiente <= 0;
+
+                _context.Abonos.Add(new Abono
+                {
+                    pedido_id = pedido.pedido_id,
+                    monto = dto.monto,
+                    metodo_pago = dto.metodo_pago,
+                    observacion = dto.observacion,
+                    usuario_id = GetUsuarioId(),
+                    fecha = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = pedido.pagado ? "Deuda cancelada completamente" : "Abono registrado",
+                    monto_abonado = dto.monto,
+                    saldo_pendiente = pedido.saldo_pendiente,
+                    pagado_completo = pedido.pagado
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        // ── GET /api/pedidos/{id}/abonos ─────────────────────────
+        [HttpGet("{id}/abonos")]
+        public async Task<IActionResult> GetAbonos(int id)
+        {
+            var sucursalId = GetSucursalId();
+
+            var pedido = await _context.Pedidos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.pedido_id == id && p.sucursal_id == sucursalId);
+
+            if (pedido == null)
+                return NotFound();
+
+            var abonos = await _context.Abonos
+                .AsNoTracking()
+                .Where(a => a.pedido_id == id)
+                .OrderBy(a => a.fecha)
+                .Select(a => new
+                {
+                    a.abono_id,
+                    a.monto,
+                    a.metodo_pago,
+                    a.observacion,
+                    a.fecha
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                pedido_id = pedido.pedido_id,
+                total = pedido.total,
+                monto_pagado = pedido.monto_pagado,
+                saldo_pendiente = pedido.saldo_pendiente,
+                pagado = pedido.pagado,
+                tipo_pago = pedido.tipo_pago,
+                abonos
+            });
+        }
+
+        // GET /api/pedidos/creditos-pendientes
+        [HttpGet("creditos-pendientes")]
+        public async Task<IActionResult> GetCreditosPendientes()
+        {
+            var sucursalId = GetSucursalId();
+
+            var pedidos = await _context.Pedidos
+                .AsNoTracking()
+                .Where(p => p.sucursal_id == sucursalId
+                         && p.estado_pedido_id == 5  // ENTREGADO
+                         && p.saldo_pendiente > 0)
+                .Include(p => p.clientes)
+                .Include(p => p.pedido_detalle)
+                    .ThenInclude(d => d.productos)
+                .OrderByDescending(p => p.fecha)
+                .Select(p => new
+                {
+                    p.pedido_id,
+                    p.total,
+                    p.monto_pagado,
+                    p.saldo_pendiente,
+                    p.metodo_pago,
+                    p.tipo_pago,
+                    p.fecha,
+                    cliente = p.clientes.nombre,
+                    cliente_doc = p.clientes.documento,
+                    detalles = p.pedido_detalle.Select(d => new
+                    {
+                        producto = d.productos.nombre,
+                        d.cantidad,
+                        d.precio,
+                        d.subtotal
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(pedidos);
+        }
     }
 }
